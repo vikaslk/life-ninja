@@ -855,6 +855,203 @@
                 }
             }, [user, needsMigration, hasSyncedOnce]);
             
+            // ====== V2.5.0-SYNC: EVENTS SYNC FUNCTIONS ======
+            
+            // Save a single event to Supabase
+            const saveEventToSupabase = async (event) => {
+                if (!user) return;
+                if (isLoadingFromSupabase) return; // Don't save while loading!
+                
+                try {
+                    setSyncStatus('syncing');
+                    
+                    // Prepare event for Supabase
+                    const eventData = {
+                        user_id: user.id,
+                        text: event.text,
+                        start_date: event.scheduledDate || null,
+                        end_date: event.endDate || null,
+                        start_time: event.startTime || null,
+                        end_time: event.endTime || null,
+                        all_day: event.allDay || false,
+                        color: event.color || '#10b981',
+                        notes: event.notes || null,
+                        tags: event.tags || []
+                    };
+                    
+                    // Check if event already exists in Supabase
+                    if (event.supabaseId) {
+                        // Update existing event
+                        const { data, error } = await supabase
+                            .from('events')
+                            .update(eventData)
+                            .eq('id', event.supabaseId)
+                            .eq('user_id', user.id)
+                            .select()
+                            .single();
+                        
+                        if (error) throw error;
+                        
+                        console.log('✅ Event updated in Supabase:', data.id);
+                        setSyncStatus('synced');
+                        setLastSyncTime(new Date());
+                        return data;
+                    } else {
+                        // Insert new event
+                        const { data, error } = await supabase
+                            .from('events')
+                            .insert([eventData])
+                            .select()
+                            .single();
+                        
+                        if (error) throw error;
+                        
+                        console.log('✅ Event saved to Supabase:', data.id);
+                        
+                        // Don't update here - let caller handle ID update
+                        
+                        setSyncStatus('synced');
+                        setLastSyncTime(new Date());
+                        return data;
+                    }
+                } catch (error) {
+                    console.error('❌ Error saving event to Supabase:', error);
+                    setSyncStatus('error');
+                    return null;
+                }
+            };
+            
+            // Delete event from Supabase
+            const deleteEventFromSupabase = async (event) => {
+                if (!user || !event.supabaseId) return;
+                
+                try {
+                    setSyncStatus('syncing');
+                    
+                    const { error } = await supabase
+                        .from('events')
+                        .delete()
+                        .eq('id', event.supabaseId)
+                        .eq('user_id', user.id);
+                    
+                    if (error) throw error;
+                    
+                    console.log('✅ Event deleted from Supabase:', event.supabaseId);
+                    setSyncStatus('synced');
+                    setLastSyncTime(new Date());
+                } catch (error) {
+                    console.error('❌ Error deleting event from Supabase:', error);
+                    setSyncStatus('error');
+                }
+            };
+            
+            // Load all events from Supabase
+            const loadEventsFromSupabase = async () => {
+                if (!user) return;
+                
+                try {
+                    setIsLoadingFromSupabase(true);
+                    
+                    const { data, error } = await supabase
+                        .from('events')
+                        .select('*')
+                        .eq('user_id', user.id)
+                        .order('start_date', { ascending: true });
+                    
+                    if (error) throw error;
+                    
+                    console.log('✅ Loaded events from Supabase:', data.length);
+                    
+                    // Convert Supabase format to app format
+                    const supabaseEvents = data.map(e => ({
+                        id: e.id, // Use Supabase ID as local ID (STABLE!)
+                        supabaseId: e.id,
+                        type: 'event',
+                        text: e.text,
+                        scheduledDate: e.start_date,
+                        endDate: e.end_date,
+                        startTime: e.start_time,
+                        endTime: e.end_time,
+                        allDay: e.all_day,
+                        color: e.color || '#10b981',
+                        notes: e.notes,
+                        tags: e.tags || [],
+                        tasks: [], // Events can have tasks, but we'll sync those later
+                        status: 'upcoming', // Default status
+                        createdAt: e.created_at
+                    }));
+                    
+                    // Use Supabase as single source of truth
+                    setEvents(supabaseEvents);
+                    setIsLoadingFromSupabase(false);
+                    
+                    console.log('✅ Events sync complete');
+                    
+                } catch (error) {
+                    console.error('❌ Error loading events from Supabase:', error);
+                    setIsLoadingFromSupabase(false);
+                }
+            };
+            
+            // Migrate localStorage events to Supabase
+            const migrateEventsToSupabase = async () => {
+                if (!user) return;
+                
+                try {
+                    const localEvents = JSON.parse(localStorage.getItem('ln_events') || '[]');
+                    
+                    if (localEvents.length === 0) {
+                        console.log('✅ No events to migrate');
+                        return;
+                    }
+                    
+                    console.log('📤 Migrating', localEvents.length, 'events...');
+                    
+                    const eventsToInsert = localEvents.map(event => ({
+                        user_id: user.id,
+                        text: event.text,
+                        start_date: event.scheduledDate || null,
+                        end_date: event.endDate || null,
+                        start_time: event.startTime || null,
+                        end_time: event.endTime || null,
+                        all_day: event.allDay || false,
+                        color: event.color || '#10b981',
+                        notes: event.notes || null,
+                        tags: event.tags || [],
+                        created_at: event.createdAt || new Date().toISOString()
+                    }));
+                    
+                    const { data, error } = await supabase
+                        .from('events')
+                        .insert(eventsToInsert)
+                        .select();
+                    
+                    if (error) throw error;
+                    
+                    console.log('✅ Events migration complete!', data.length, 'events uploaded');
+                    
+                    // Reload events from Supabase
+                    await loadEventsFromSupabase();
+                    
+                } catch (error) {
+                    console.error('❌ Events migration error:', error);
+                }
+            };
+            
+            // Load events from Supabase when user logs in
+            useEffect(() => {
+                if (user && !isLoadingFromSupabase) {
+                    loadEventsFromSupabase();
+                    
+                    // Check if we need to migrate localStorage events
+                    const localEvents = JSON.parse(localStorage.getItem('ln_events') || '[]');
+                    if (localEvents.length > 0) {
+                        console.log('📤 Found', localEvents.length, 'local events to migrate');
+                        migrateEventsToSupabase();
+                    }
+                }
+            }, [user]);
+            
             // Generate time slots (used in multiple views)
             const timeSlots = [];
             for (let h = 0; h < 24; h++) {
@@ -2718,10 +2915,16 @@
                                     <Edit2 size={16} />
                                 </button>
                                 <button
-                                    onClick={() => {
+                                    onClick={async () => {
                                         if (confirm('Delete this event?')) {
+                                            const eventToDelete = events.find(e => e.id === event.id);
                                             setEvents(prev => prev.filter(e => e.id !== event.id));
                                             showToast('Event deleted');
+                                            
+                                            // V2.5.0-SYNC: Delete from Supabase
+                                            if (eventToDelete && user && !isLoadingFromSupabase) {
+                                                await deleteEventFromSupabase(eventToDelete);
+                                            }
                                         }
                                     }}
                                     className="p-1 hover:bg-red-100 rounded text-red-600"
@@ -5812,11 +6015,16 @@
                                     </button>
                                 </div>
                                 
-                                <form onSubmit={(e) => {
+                                <form onSubmit={async (e) => {
                                     e.preventDefault();
                                     const formData = new FormData(e.target);
+                                    
+                                    // Create temp ID for new events
+                                    const tempId = editingEvent?.id || ('temp_event_' + Date.now());
+                                    
                                     const eventData = {
-                                        id: editingEvent?.id || Date.now(),
+                                        id: tempId,
+                                        supabaseId: editingEvent?.supabaseId || null,
                                         type: 'event',
                                         text: formData.get('text'),
                                         startTime: formData.get('startTime'),
@@ -5830,15 +6038,40 @@
                                         color: formData.get('color') || '#10b981',
                                         tasks: editingEvent?.tasks || [],
                                         createdAt: editingEvent?.createdAt || new Date().toISOString(),
-                                        status: editingEvent?.status || 'upcoming'
+                                        status: editingEvent?.status || 'upcoming',
+                                        allDay: formData.get('allDay') === 'on'
                                     };
                                     
                                     if (editingEvent) {
+                                        // Update existing event
                                         setEvents(prev => prev.map(e => e.id === editingEvent.id ? eventData : e));
                                         showToast('Event updated');
+                                        
+                                        // V2.5.0-SYNC: Save to Supabase
+                                        if (user && !isLoadingFromSupabase) {
+                                            await saveEventToSupabase(eventData);
+                                        }
                                     } else {
+                                        // Create new event
                                         setEvents(prev => [...prev, eventData]);
                                         showToast('Event created');
+                                        
+                                        // V2.5.0-SYNC: Save to Supabase and get real ID
+                                        if (user && !isLoadingFromSupabase) {
+                                            try {
+                                                const savedEvent = await saveEventToSupabase(eventData);
+                                                if (savedEvent && savedEvent.id) {
+                                                    // Replace temp event with event using Supabase ID
+                                                    setEvents(prev => prev.map(e => 
+                                                        e.id === tempId 
+                                                            ? { ...e, id: savedEvent.id, supabaseId: savedEvent.id }
+                                                            : e
+                                                    ));
+                                                }
+                                            } catch (error) {
+                                                console.error('❌ Error saving new event:', error);
+                                            }
+                                        }
                                     }
                                     setShowEventModal(false);
                                 }}>
