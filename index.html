@@ -565,6 +565,285 @@
                 }
             };
             
+            // ====== V2.5.0-SYNC: SUPABASE SYNC FUNCTIONS ======
+            const [syncStatus, setSyncStatus] = useState('idle'); // 'idle', 'syncing', 'synced', 'error'
+            const [lastSyncTime, setLastSyncTime] = useState(null);
+            const [needsMigration, setNeedsMigration] = useState(false);
+            
+            // Check if we need to migrate localStorage tasks to Supabase
+            useEffect(() => {
+                const checkMigration = async () => {
+                    if (!user) return;
+                    
+                    // Check if we have localStorage tasks
+                    const localTasks = JSON.parse(localStorage.getItem('ln_tasks') || '[]');
+                    if (localTasks.length === 0) return;
+                    
+                    // Check if Supabase has any tasks
+                    try {
+                        const { data, error } = await supabase
+                            .from('tasks')
+                            .select('id', { count: 'exact', head: true });
+                        
+                        if (error) throw error;
+                        
+                        // If no tasks in Supabase but have local tasks, need migration
+                        if (data === null || (data && data.length === 0)) {
+                            setNeedsMigration(true);
+                            console.log('📤 Migration needed:', localTasks.length, 'tasks in localStorage');
+                        }
+                    } catch (error) {
+                        console.error('❌ Error checking migration:', error);
+                    }
+                };
+                
+                checkMigration();
+            }, [user]);
+            
+            // Save a single task to Supabase
+            const saveTaskToSupabase = async (task) => {
+                if (!user) return;
+                
+                try {
+                    setSyncStatus('syncing');
+                    
+                    // Prepare task for Supabase (remove id if it's a new task)
+                    const taskData = {
+                        user_id: user.id,
+                        text: task.text,
+                        scheduled_date: task.scheduledDate || null,
+                        due_date: task.dueDate || null,
+                        time_slot: task.timeSlot || null,
+                        estimated_duration: task.estimatedDuration || 30,
+                        status: task.status || 'not-started',
+                        priority: task.priority || 'medium',
+                        task_type: task.taskType || null,
+                        persona: task.persona || null,
+                        project: task.project || null,
+                        tags: task.tags || [],
+                        notes: task.notes || null,
+                        archived: task.archived || false,
+                        is_old_task: task.isOldTask || false,
+                        manual_order: task.manualOrder || null,
+                        subtasks: task.subtasks || []
+                    };
+                    
+                    // Check if task already exists in Supabase (by checking if we have a supabaseId)
+                    if (task.supabaseId) {
+                        // Update existing task
+                        const { data, error } = await supabase
+                            .from('tasks')
+                            .update(taskData)
+                            .eq('id', task.supabaseId)
+                            .eq('user_id', user.id)
+                            .select()
+                            .single();
+                        
+                        if (error) throw error;
+                        
+                        console.log('✅ Task updated in Supabase:', data.id);
+                        setSyncStatus('synced');
+                        setLastSyncTime(new Date());
+                        return data;
+                    } else {
+                        // Insert new task
+                        const { data, error } = await supabase
+                            .from('tasks')
+                            .insert([taskData])
+                            .select()
+                            .single();
+                        
+                        if (error) throw error;
+                        
+                        console.log('✅ Task saved to Supabase:', data.id);
+                        
+                        // Update local task with Supabase ID
+                        setTasks(prev => prev.map(t => 
+                            t.id === task.id 
+                                ? { ...t, supabaseId: data.id }
+                                : t
+                        ));
+                        
+                        setSyncStatus('synced');
+                        setLastSyncTime(new Date());
+                        return data;
+                    }
+                } catch (error) {
+                    console.error('❌ Error saving to Supabase:', error);
+                    setSyncStatus('error');
+                    return null;
+                }
+            };
+            
+            // Delete task from Supabase
+            const deleteTaskFromSupabase = async (task) => {
+                if (!user || !task.supabaseId) return;
+                
+                try {
+                    setSyncStatus('syncing');
+                    
+                    const { error } = await supabase
+                        .from('tasks')
+                        .delete()
+                        .eq('id', task.supabaseId)
+                        .eq('user_id', user.id);
+                    
+                    if (error) throw error;
+                    
+                    console.log('✅ Task deleted from Supabase:', task.supabaseId);
+                    setSyncStatus('synced');
+                    setLastSyncTime(new Date());
+                } catch (error) {
+                    console.error('❌ Error deleting from Supabase:', error);
+                    setSyncStatus('error');
+                }
+            };
+            
+            // Load all tasks from Supabase
+            const loadTasksFromSupabase = async () => {
+                if (!user) return;
+                
+                try {
+                    setSyncStatus('syncing');
+                    
+                    const { data, error } = await supabase
+                        .from('tasks')
+                        .select('*')
+                        .eq('user_id', user.id)
+                        .order('created_at', { ascending: true });
+                    
+                    if (error) throw error;
+                    
+                    console.log('✅ Loaded tasks from Supabase:', data.length);
+                    
+                    // Convert Supabase format to app format
+                    const supabaseTasks = data.map(t => ({
+                        id: Date.now() + Math.random(), // Local ID
+                        supabaseId: t.id, // Supabase ID
+                        text: t.text,
+                        scheduledDate: t.scheduled_date,
+                        dueDate: t.due_date,
+                        timeSlot: t.time_slot,
+                        estimatedDuration: t.estimated_duration,
+                        status: t.status,
+                        priority: t.priority,
+                        taskType: t.task_type,
+                        persona: t.persona,
+                        project: t.project,
+                        tags: t.tags || [],
+                        notes: t.notes,
+                        archived: t.archived,
+                        isOldTask: t.is_old_task,
+                        manualOrder: t.manual_order,
+                        subtasks: t.subtasks || []
+                    }));
+                    
+                    // Merge with localStorage tasks (keep localStorage as backup)
+                    const localTasks = JSON.parse(localStorage.getItem('ln_tasks') || '[]');
+                    
+                    // If no local tasks, just use Supabase tasks
+                    if (localTasks.length === 0) {
+                        setTasks(supabaseTasks);
+                        setSyncStatus('synced');
+                        setLastSyncTime(new Date());
+                        return;
+                    }
+                    
+                    // If migration hasn't happened yet, don't overwrite local tasks
+                    if (needsMigration) {
+                        console.log('⚠️ Migration pending, keeping local tasks');
+                        setSyncStatus('idle');
+                        return;
+                    }
+                    
+                    // Use Supabase tasks as source of truth
+                    setTasks(supabaseTasks);
+                    setSyncStatus('synced');
+                    setLastSyncTime(new Date());
+                    
+                } catch (error) {
+                    console.error('❌ Error loading from Supabase:', error);
+                    setSyncStatus('error');
+                }
+            };
+            
+            // Migrate all localStorage tasks to Supabase
+            const migrateToSupabase = async () => {
+                if (!user) return;
+                
+                try {
+                    setSyncStatus('syncing');
+                    console.log('📤 Starting migration...');
+                    
+                    const localTasks = JSON.parse(localStorage.getItem('ln_tasks') || '[]');
+                    
+                    if (localTasks.length === 0) {
+                        console.log('✅ No tasks to migrate');
+                        setNeedsMigration(false);
+                        setSyncStatus('synced');
+                        return;
+                    }
+                    
+                    console.log('📤 Migrating', localTasks.length, 'tasks...');
+                    
+                    // Prepare all tasks for batch insert
+                    const tasksToInsert = localTasks.map(task => ({
+                        user_id: user.id,
+                        text: task.text,
+                        scheduled_date: task.scheduledDate || null,
+                        due_date: task.dueDate || null,
+                        time_slot: task.timeSlot || null,
+                        estimated_duration: task.estimatedDuration || 30,
+                        status: task.status || 'not-started',
+                        priority: task.priority || 'medium',
+                        task_type: task.taskType || null,
+                        persona: task.persona || null,
+                        project: task.project || null,
+                        tags: task.tags || [],
+                        notes: task.notes || null,
+                        archived: task.archived || false,
+                        is_old_task: task.isOldTask || false,
+                        manual_order: task.manualOrder || null,
+                        subtasks: task.subtasks || []
+                    }));
+                    
+                    // Batch insert all tasks
+                    const { data, error } = await supabase
+                        .from('tasks')
+                        .insert(tasksToInsert)
+                        .select();
+                    
+                    if (error) throw error;
+                    
+                    console.log('✅ Migration complete!', data.length, 'tasks uploaded');
+                    
+                    // Update local tasks with Supabase IDs
+                    const updatedTasks = localTasks.map((task, index) => ({
+                        ...task,
+                        supabaseId: data[index].id
+                    }));
+                    
+                    setTasks(updatedTasks);
+                    setNeedsMigration(false);
+                    setSyncStatus('synced');
+                    setLastSyncTime(new Date());
+                    
+                    alert(`✅ Successfully synced ${data.length} tasks to cloud!`);
+                    
+                } catch (error) {
+                    console.error('❌ Migration error:', error);
+                    setSyncStatus('error');
+                    alert('❌ Migration failed: ' + error.message);
+                }
+            };
+            
+            // Load tasks from Supabase when user logs in
+            useEffect(() => {
+                if (user && !needsMigration) {
+                    loadTasksFromSupabase();
+                }
+            }, [user]);
+            
             // Generate time slots (used in multiple views)
             const timeSlots = [];
             for (let h = 0; h < 24; h++) {
@@ -835,14 +1114,30 @@
                     ...taskData
                 };
                 setTasks(prev => [...prev, newTask]);
+                
+                // V2.5.0-SYNC: Save new task to Supabase
+                if (user) {
+                    saveTaskToSupabase(newTask);
+                }
+                
                 showToast('Task created successfully');
                 return newTask;
             };
 
             const updateTask = (taskId, updates) => {
-                setTasks(prev => prev.map(task => 
-                    task.id === taskId ? { ...task, ...updates } : task
-                ));
+                setTasks(prev => {
+                    const updated = prev.map(task => 
+                        task.id === taskId ? { ...task, ...updates } : task
+                    );
+                    
+                    // V2.5.0-SYNC: Save updated task to Supabase
+                    const updatedTask = updated.find(t => t.id === taskId);
+                    if (updatedTask && user) {
+                        saveTaskToSupabase(updatedTask);
+                    }
+                    
+                    return updated;
+                });
             };
 
             const updateListTask = (listId, taskId, updates) => {
@@ -857,6 +1152,12 @@
                 const taskToDelete = tasks.find(t => t.id === taskId);
                 setUndoData({ action: 'deleteTask', data: taskToDelete });
                 setTasks(prev => prev.filter(task => task.id !== taskId));
+                
+                // V2.5.0-SYNC: Delete from Supabase
+                if (taskToDelete && user) {
+                    deleteTaskFromSupabase(taskToDelete);
+                }
+                
                 showToast('Task deleted', true);
             };
 
@@ -5282,6 +5583,69 @@
                                     */}
                                 </div>
                             </div>
+
+                            {/* V2.5.0-SYNC: Migration Banner */}
+                            {needsMigration && (
+                                <div className="mt-4 p-4 bg-yellow-50 border-2 border-yellow-300 rounded-lg">
+                                    <div className="flex items-start gap-3">
+                                        <div className="flex-shrink-0">
+                                            <Upload className="text-yellow-600" size={24} />
+                                        </div>
+                                        <div className="flex-1">
+                                            <h3 className="font-bold text-yellow-900 mb-1">📤 Sync Your Tasks to Cloud</h3>
+                                            <p className="text-sm text-yellow-800 mb-3">
+                                                You have tasks stored locally. Click below to sync them to the cloud so they're accessible from all your devices!
+                                            </p>
+                                            <div className="flex gap-2">
+                                                <button
+                                                    onClick={migrateToSupabase}
+                                                    disabled={syncStatus === 'syncing'}
+                                                    className="px-4 py-2 bg-yellow-600 hover:bg-yellow-700 text-white rounded-lg font-semibold disabled:opacity-50 flex items-center gap-2"
+                                                >
+                                                    {syncStatus === 'syncing' ? (
+                                                        <>
+                                                            <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white"></div>
+                                                            Syncing...
+                                                        </>
+                                                    ) : (
+                                                        <>
+                                                            <Upload size={18} />
+                                                            Sync to Cloud
+                                                        </>
+                                                    )}
+                                                </button>
+                                                <button
+                                                    onClick={() => setNeedsMigration(false)}
+                                                    className="px-4 py-2 bg-gray-200 hover:bg-gray-300 text-gray-700 rounded-lg font-semibold"
+                                                >
+                                                    Later
+                                                </button>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            )}
+                            
+                            {/* Sync Status Indicator */}
+                            {syncStatus === 'syncing' && (
+                                <div className="mt-2 p-2 bg-blue-50 border border-blue-200 rounded-lg flex items-center gap-2">
+                                    <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-blue-600"></div>
+                                    <span className="text-sm text-blue-700">Syncing...</span>
+                                </div>
+                            )}
+                            {syncStatus === 'synced' && lastSyncTime && (
+                                <div className="mt-2 p-2 bg-green-50 border border-green-200 rounded-lg flex items-center gap-2">
+                                    <div className="w-2 h-2 bg-green-500 rounded-full"></div>
+                                    <span className="text-xs text-green-700">
+                                        Last synced: {new Date(lastSyncTime).toLocaleTimeString()}
+                                    </span>
+                                </div>
+                            )}
+                            {syncStatus === 'error' && (
+                                <div className="mt-2 p-2 bg-red-50 border border-red-200 rounded-lg flex items-center gap-2">
+                                    <span className="text-sm text-red-700">⚠️ Sync error - will retry automatically</span>
+                                </div>
+                            )}
 
                             {/* View switcher */}
                             <div className="flex gap-2 mt-4 overflow-x-auto">
