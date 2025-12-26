@@ -571,6 +571,7 @@
             const [needsMigration, setNeedsMigration] = useState(false);
             const [isLoadingFromSupabase, setIsLoadingFromSupabase] = useState(false);
             const [hasSyncedOnce, setHasSyncedOnce] = useState(false);
+            const [hasEventsSynced, setHasEventsSynced] = useState(false);
             
             // Check if we need to migrate localStorage tasks to Supabase
             useEffect(() => {
@@ -985,6 +986,10 @@
                     setEvents(supabaseEvents);
                     setIsLoadingFromSupabase(false);
                     
+                    // Mark that we've synced events successfully
+                    localStorage.setItem('ln_has_synced_events_to_supabase', 'true');
+                    setHasEventsSynced(true);
+                    
                     console.log('✅ Events sync complete');
                     
                 } catch (error) {
@@ -1030,6 +1035,10 @@
                     
                     console.log('✅ Events migration complete!', data.length, 'events uploaded');
                     
+                    // Mark migration complete
+                    localStorage.setItem('ln_has_synced_events_to_supabase', 'true');
+                    setHasEventsSynced(true);
+                    
                     // Reload events from Supabase
                     await loadEventsFromSupabase();
                     
@@ -1040,17 +1049,36 @@
             
             // Load events from Supabase when user logs in
             useEffect(() => {
-                if (user && !isLoadingFromSupabase) {
-                    loadEventsFromSupabase();
+                const initializeEvents = async () => {
+                    if (!user || isLoadingFromSupabase) return;
                     
-                    // Check if we need to migrate localStorage events
-                    const localEvents = JSON.parse(localStorage.getItem('ln_events') || '[]');
-                    if (localEvents.length > 0) {
-                        console.log('📤 Found', localEvents.length, 'local events to migrate');
-                        migrateEventsToSupabase();
+                    // Check if already synced (flag in localStorage)
+                    const hasAlreadySynced = localStorage.getItem('ln_has_synced_events_to_supabase') === 'true';
+                    
+                    if (hasAlreadySynced) {
+                        // Already synced, just load from Supabase
+                        setHasEventsSynced(true);
+                        await loadEventsFromSupabase();
+                        return;
                     }
+                    
+                    // First time - check if we need to migrate localStorage events
+                    const localEvents = JSON.parse(localStorage.getItem('ln_events') || '[]');
+                    
+                    if (localEvents.length > 0) {
+                        // Migrate localStorage events
+                        console.log('📤 Found', localEvents.length, 'local events to migrate');
+                        await migrateEventsToSupabase();
+                    } else {
+                        // No local events, just load from Supabase
+                        await loadEventsFromSupabase();
+                    }
+                };
+                
+                if (user && !hasEventsSynced) {
+                    initializeEvents();
                 }
-            }, [user]);
+            }, [user, hasEventsSynced]);
             
             // Generate time slots (used in multiple views)
             const timeSlots = [];
