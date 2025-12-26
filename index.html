@@ -560,6 +560,8 @@
                 try {
                     await supabase.auth.signOut();
                     console.log('✅ Logged out');
+                    // Reload page to clear all state
+                    window.location.reload();
                 } catch (error) {
                     console.error('❌ Logout error:', error);
                 }
@@ -877,7 +879,10 @@
                         all_day: event.allDay || false,
                         color: event.color || '#10b981',
                         notes: event.notes || null,
-                        tags: event.tags || []
+                        tags: event.tags || [],
+                        persona: event.persona || null,
+                        project: event.project || null,
+                        priority: event.priority || 'medium'
                     };
                     
                     // Check if event already exists in Supabase
@@ -977,6 +982,9 @@
                         color: e.color || '#10b981',
                         notes: e.notes,
                         tags: e.tags || [],
+                        persona: e.persona,
+                        project: e.project,
+                        priority: e.priority || 'medium',
                         tasks: [], // Events can have tasks, but we'll sync those later
                         status: 'upcoming', // Default status
                         createdAt: e.created_at
@@ -1023,6 +1031,9 @@
                         color: event.color || '#10b981',
                         notes: event.notes || null,
                         tags: event.tags || [],
+                        persona: event.persona || null,
+                        project: event.project || null,
+                        priority: event.priority || 'medium',
                         created_at: event.createdAt || new Date().toISOString()
                     }));
                     
@@ -2965,11 +2976,10 @@
                         
                         {expanded && (
                             <div className="mt-3 pt-3 border-t space-y-2">
-                                {event.notes && (
-                                    <div className="text-sm">
-                                        <strong>Notes:</strong> {event.notes}
-                                    </div>
-                                )}
+                                {/* Always show notes field */}
+                                <div className="text-sm">
+                                    <strong>Notes:</strong> {event.notes || <span className="text-gray-400 italic">No notes</span>}
+                                </div>
                                 {event.tasks && event.tasks.length > 0 && (
                                     <div>
                                         <strong className="text-sm">Tasks in this event:</strong>
