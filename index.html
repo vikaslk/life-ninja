@@ -569,15 +569,27 @@
             const [syncStatus, setSyncStatus] = useState('idle'); // 'idle', 'syncing', 'synced', 'error'
             const [lastSyncTime, setLastSyncTime] = useState(null);
             const [needsMigration, setNeedsMigration] = useState(false);
+            const [isLoadingFromSupabase, setIsLoadingFromSupabase] = useState(false);
+            const [hasSyncedOnce, setHasSyncedOnce] = useState(false);
             
             // Check if we need to migrate localStorage tasks to Supabase
             useEffect(() => {
                 const checkMigration = async () => {
                     if (!user) return;
                     
+                    // Check if already synced (flag in localStorage)
+                    const hasAlreadySynced = localStorage.getItem('ln_has_synced_to_supabase') === 'true';
+                    if (hasAlreadySynced) {
+                        setHasSyncedOnce(true);
+                        return;
+                    }
+                    
                     // Check if we have localStorage tasks
                     const localTasks = JSON.parse(localStorage.getItem('ln_tasks') || '[]');
-                    if (localTasks.length === 0) return;
+                    if (localTasks.length === 0) {
+                        // No local tasks, load from Supabase
+                        return;
+                    }
                     
                     // Check if Supabase has any tasks
                     try {
@@ -603,6 +615,7 @@
             // Save a single task to Supabase
             const saveTaskToSupabase = async (task) => {
                 if (!user) return;
+                if (isLoadingFromSupabase) return; // Don't save while loading!
                 
                 try {
                     setSyncStatus('syncing');
@@ -657,12 +670,7 @@
                         
                         console.log('✅ Task saved to Supabase:', data.id);
                         
-                        // Update local task with Supabase ID
-                        setTasks(prev => prev.map(t => 
-                            t.id === task.id 
-                                ? { ...t, supabaseId: data.id }
-                                : t
-                        ));
+                        // Don't update here - let caller handle ID update
                         
                         setSyncStatus('synced');
                         setLastSyncTime(new Date());
@@ -704,6 +712,7 @@
                 if (!user) return;
                 
                 try {
+                    setIsLoadingFromSupabase(true); // CRITICAL: Prevent saves during load!
                     setSyncStatus('syncing');
                     
                     const { data, error } = await supabase
@@ -716,10 +725,19 @@
                     
                     console.log('✅ Loaded tasks from Supabase:', data.length);
                     
+                    // If migration hasn't happened yet AND we have local tasks, don't overwrite
+                    if (needsMigration) {
+                        console.log('⚠️ Migration pending, keeping local tasks');
+                        setIsLoadingFromSupabase(false);
+                        setSyncStatus('idle');
+                        return;
+                    }
+                    
                     // Convert Supabase format to app format
+                    // CRITICAL FIX: Use Supabase ID as local ID for stability!
                     const supabaseTasks = data.map(t => ({
-                        id: Date.now() + Math.random(), // Local ID
-                        supabaseId: t.id, // Supabase ID
+                        id: t.id, // Use Supabase ID as local ID (STABLE!)
+                        supabaseId: t.id, // Also keep it here for clarity
                         text: t.text,
                         scheduledDate: t.scheduled_date,
                         dueDate: t.due_date,
@@ -735,35 +753,27 @@
                         archived: t.archived,
                         isOldTask: t.is_old_task,
                         manualOrder: t.manual_order,
-                        subtasks: t.subtasks || []
+                        subtasks: t.subtasks || [],
+                        createdAt: t.created_at
                     }));
                     
-                    // Merge with localStorage tasks (keep localStorage as backup)
-                    const localTasks = JSON.parse(localStorage.getItem('ln_tasks') || '[]');
-                    
-                    // If no local tasks, just use Supabase tasks
-                    if (localTasks.length === 0) {
-                        setTasks(supabaseTasks);
-                        setSyncStatus('synced');
-                        setLastSyncTime(new Date());
-                        return;
-                    }
-                    
-                    // If migration hasn't happened yet, don't overwrite local tasks
-                    if (needsMigration) {
-                        console.log('⚠️ Migration pending, keeping local tasks');
-                        setSyncStatus('idle');
-                        return;
-                    }
-                    
-                    // Use Supabase tasks as source of truth
+                    // Use Supabase as single source of truth
                     setTasks(supabaseTasks);
+                    
+                    // Mark that we've synced successfully
+                    localStorage.setItem('ln_has_synced_to_supabase', 'true');
+                    setHasSyncedOnce(true);
+                    
                     setSyncStatus('synced');
                     setLastSyncTime(new Date());
+                    setIsLoadingFromSupabase(false); // Done loading!
+                    
+                    console.log('✅ Sync complete, Supabase is source of truth');
                     
                 } catch (error) {
                     console.error('❌ Error loading from Supabase:', error);
                     setSyncStatus('error');
+                    setIsLoadingFromSupabase(false);
                 }
             };
             
@@ -772,6 +782,7 @@
                 if (!user) return;
                 
                 try {
+                    setIsLoadingFromSupabase(true); // Prevent duplicate saves during migration
                     setSyncStatus('syncing');
                     console.log('📤 Starting migration...');
                     
@@ -781,6 +792,7 @@
                         console.log('✅ No tasks to migrate');
                         setNeedsMigration(false);
                         setSyncStatus('synced');
+                        setIsLoadingFromSupabase(false);
                         return;
                     }
                     
@@ -804,7 +816,8 @@
                         archived: task.archived || false,
                         is_old_task: task.isOldTask || false,
                         manual_order: task.manualOrder || null,
-                        subtasks: task.subtasks || []
+                        subtasks: task.subtasks || [],
+                        created_at: task.createdAt || new Date().toISOString()
                     }));
                     
                     // Batch insert all tasks
@@ -817,32 +830,30 @@
                     
                     console.log('✅ Migration complete!', data.length, 'tasks uploaded');
                     
-                    // Update local tasks with Supabase IDs
-                    const updatedTasks = localTasks.map((task, index) => ({
-                        ...task,
-                        supabaseId: data[index].id
-                    }));
-                    
-                    setTasks(updatedTasks);
+                    // Mark migration complete
                     setNeedsMigration(false);
-                    setSyncStatus('synced');
-                    setLastSyncTime(new Date());
+                    localStorage.setItem('ln_has_synced_to_supabase', 'true');
+                    setHasSyncedOnce(true);
+                    
+                    // Now load from Supabase to get proper IDs
+                    await loadTasksFromSupabase();
                     
                     alert(`✅ Successfully synced ${data.length} tasks to cloud!`);
                     
                 } catch (error) {
                     console.error('❌ Migration error:', error);
                     setSyncStatus('error');
+                    setIsLoadingFromSupabase(false);
                     alert('❌ Migration failed: ' + error.message);
                 }
             };
             
             // Load tasks from Supabase when user logs in
             useEffect(() => {
-                if (user && !needsMigration) {
+                if (user && !needsMigration && !hasSyncedOnce) {
                     loadTasksFromSupabase();
                 }
-            }, [user]);
+            }, [user, needsMigration, hasSyncedOnce]);
             
             // Generate time slots (used in multiple views)
             const timeSlots = [];
@@ -1085,9 +1096,11 @@
             }, [tasks, filterStatus, filterPersona, filterProject, searchQuery, sortBy, showArchived, isManualOrder]);
 
             // ====== TASK MANAGEMENT FUNCTIONS ======
-            const createTask = (taskData) => {
+            const createTask = async (taskData) => {
+                // Create temporary task with temp ID
+                const tempId = 'temp_' + Date.now();
                 const newTask = {
-                    id: Date.now(),
+                    id: tempId,
                     text: '',
                     status: 'not-started',
                     taskType: 'consistency',
@@ -1106,21 +1119,34 @@
                     archived: false,
                     recurringPattern: null,
                     subtasks: [],
-                    // FIX Issues 1-3: Don't set manualOrder - let it sort by createdAt
                     manualOrder: null,
                     createdAt: new Date().toISOString(),
                     startedAt: null,
                     completedAt: null,
                     ...taskData
                 };
-                setTasks(prev => [...prev, newTask]);
                 
-                // V2.5.0-SYNC: Save new task to Supabase
-                if (user) {
-                    saveTaskToSupabase(newTask);
+                // Add to local state immediately (optimistic UI)
+                setTasks(prev => [...prev, newTask]);
+                showToast('Task created successfully');
+                
+                // V2.5.0-SYNC: Save to Supabase and get real ID
+                if (user && !isLoadingFromSupabase) {
+                    try {
+                        const savedTask = await saveTaskToSupabase(newTask);
+                        if (savedTask && savedTask.id) {
+                            // Replace temp task with task using Supabase ID
+                            setTasks(prev => prev.map(t => 
+                                t.id === tempId 
+                                    ? { ...t, id: savedTask.id, supabaseId: savedTask.id }
+                                    : t
+                            ));
+                        }
+                    } catch (error) {
+                        console.error('❌ Error saving new task:', error);
+                    }
                 }
                 
-                showToast('Task created successfully');
                 return newTask;
             };
 
