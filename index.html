@@ -185,6 +185,16 @@
             const day = String(d.getDate()).padStart(2, '0');
             return `${year}-${month}-${day}`;
         };
+        
+        // NEW: Format date for display (DD/MM/YYYY)
+        const formatDateDisplay = (date) => {
+            if (!date) return null;
+            const d = new Date(date);
+            const day = String(d.getDate()).padStart(2, '0');
+            const month = String(d.getMonth() + 1).padStart(2, '0');
+            const year = d.getFullYear();
+            return `${day}/${month}/${year}`;
+        };
 
         const parseDate = (dateStr) => {
             if (!dateStr) return null;
@@ -593,32 +603,41 @@
                 const checkMigration = async () => {
                     if (!user) return;
                     
-                    // Check if already synced (flag in localStorage)
+                    // CRITICAL: Check flag FIRST - if already synced, NEVER show banner
                     const hasAlreadySynced = localStorage.getItem('ln_has_synced_to_supabase') === 'true';
                     if (hasAlreadySynced) {
                         setHasSyncedOnce(true);
+                        setNeedsMigration(false); // Explicitly set to false
+                        console.log('✅ Already synced - skipping migration check');
                         return;
                     }
                     
                     // Check if we have localStorage tasks
                     const localTasks = JSON.parse(localStorage.getItem('ln_tasks') || '[]');
                     if (localTasks.length === 0) {
-                        // No local tasks, load from Supabase
+                        // No local tasks, just mark as synced
+                        localStorage.setItem('ln_has_synced_to_supabase', 'true');
+                        setHasSyncedOnce(true);
                         return;
                     }
                     
                     // Check if Supabase has any tasks
                     try {
-                        const { data, error } = await supabase
+                        const { count, error } = await supabase
                             .from('tasks')
-                            .select('id', { count: 'exact', head: true });
+                            .select('*', { count: 'exact', head: true });
                         
                         if (error) throw error;
                         
                         // If no tasks in Supabase but have local tasks, need migration
-                        if (data === null || (data && data.length === 0)) {
+                        if (count === 0) {
                             setNeedsMigration(true);
                             console.log('📤 Migration needed:', localTasks.length, 'tasks in localStorage');
+                        } else {
+                            // Has tasks in Supabase - mark as already synced
+                            localStorage.setItem('ln_has_synced_to_supabase', 'true');
+                            setHasSyncedOnce(true);
+                            console.log('✅ Supabase has', count, 'tasks - no migration needed');
                         }
                     } catch (error) {
                         console.error('❌ Error checking migration:', error);
@@ -773,8 +792,31 @@
                         createdAt: t.created_at
                     }));
                     
+                    // CRITICAL: Sort consistently across all devices
+                    // Priority: manual_order (if set) > scheduled_date > created_at
+                    const sortedTasks = supabaseTasks.sort((a, b) => {
+                        // First: Manual order (if both have it)
+                        if (a.manualOrder !== null && b.manualOrder !== null) {
+                            return a.manualOrder - b.manualOrder;
+                        }
+                        // If only one has manual order, it goes first
+                        if (a.manualOrder !== null) return -1;
+                        if (b.manualOrder !== null) return 1;
+                        
+                        // Second: Scheduled date (null dates go last)
+                        if (a.scheduledDate && b.scheduledDate) {
+                            const dateCompare = a.scheduledDate.localeCompare(b.scheduledDate);
+                            if (dateCompare !== 0) return dateCompare;
+                        }
+                        if (a.scheduledDate && !b.scheduledDate) return -1;
+                        if (!a.scheduledDate && b.scheduledDate) return 1;
+                        
+                        // Third: Created at
+                        return new Date(a.createdAt) - new Date(b.createdAt);
+                    });
+                    
                     // Use Supabase as single source of truth
-                    setTasks(supabaseTasks);
+                    setTasks(sortedTasks);
                     
                     // Mark that we've synced successfully
                     localStorage.setItem('ln_has_synced_to_supabase', 'true');
@@ -2063,7 +2105,17 @@
                     updateTask(item.id, { scheduledDate: zoneData.date });
                     showToast(`Task moved to ${zoneData.date}`, true);
                 } else if (zone === 'timeline-slot' && type === 'task') {
-                    updateTask(item.id, { timeSlot: zoneData.slot });
+                    // CRITICAL FIX: Ensure task has scheduled date when dropped in timeline
+                    const updates = { timeSlot: zoneData.slot };
+                    
+                    // If task doesn't have a scheduled date, set it to selected date
+                    const task = tasks.find(t => t.id === item.id);
+                    if (!task?.scheduledDate) {
+                        updates.scheduledDate = selectedDate;
+                        console.log('📅 Setting scheduled date:', selectedDate);
+                    }
+                    
+                    updateTask(item.id, updates);
                     showToast(`Task scheduled at ${zoneData.slot}`, true);
                 } else if (zone === 'kanban-column' && type === 'task') {
                     updateTask(item.id, { status: zoneData.status });
@@ -2635,7 +2687,7 @@
                                     {/* Date info */}
                                     {showDate && task.scheduledDate && (
                                         <div className="text-xs text-gray-500 mt-1">
-                                            📅 {task.scheduledDate}
+                                            📅 {formatDateDisplay(task.scheduledDate)}
                                         </div>
                                     )}
 
