@@ -179,7 +179,11 @@
         const formatDate = (date) => {
             if (!date) return null;
             const d = new Date(date);
-            return d.toISOString().split('T')[0];
+            // Use local timezone instead of UTC
+            const year = d.getFullYear();
+            const month = String(d.getMonth() + 1).padStart(2, '0');
+            const day = String(d.getDate()).padStart(2, '0');
+            return `${year}-${month}-${day}`;
         };
 
         const parseDate = (dateStr) => {
@@ -558,12 +562,21 @@
             
             const handleLogout = async () => {
                 try {
+                    console.log('🚪 Logging out...');
                     await supabase.auth.signOut();
-                    console.log('✅ Logged out');
-                    // Reload page to clear all state
-                    window.location.reload();
+                    
+                    // Clear all sync flags
+                    localStorage.removeItem('ln_has_synced_to_supabase');
+                    localStorage.removeItem('ln_has_synced_events_to_supabase');
+                    
+                    console.log('✅ Logged out successfully');
+                    
+                    // Force full page reload (more aggressive than window.location.reload())
+                    window.location.href = window.location.href;
                 } catch (error) {
                     console.error('❌ Logout error:', error);
+                    // Force reload anyway
+                    window.location.href = window.location.href;
                 }
             };
             
@@ -857,6 +870,199 @@
                     loadTasksFromSupabase();
                 }
             }, [user, needsMigration, hasSyncedOnce]);
+            
+            // ====== PHASE 3: REAL-TIME SYNC ======
+            
+            // Subscribe to real-time changes for tasks
+            useEffect(() => {
+                if (!user) return;
+                
+                console.log('🔔 Setting up real-time subscriptions...');
+                
+                // Subscribe to tasks table changes
+                const tasksSubscription = supabase
+                    .channel('tasks-changes')
+                    .on(
+                        'postgres_changes',
+                        {
+                            event: '*', // Listen to all events (INSERT, UPDATE, DELETE)
+                            schema: 'public',
+                            table: 'tasks',
+                            filter: `user_id=eq.${user.id}`
+                        },
+                        (payload) => {
+                            console.log('📥 Tasks change detected:', payload.eventType);
+                            
+                            if (payload.eventType === 'INSERT') {
+                                const newTask = {
+                                    id: payload.new.id,
+                                    supabaseId: payload.new.id,
+                                    text: payload.new.text,
+                                    scheduledDate: payload.new.scheduled_date,
+                                    dueDate: payload.new.due_date,
+                                    timeSlot: payload.new.time_slot,
+                                    estimatedDuration: payload.new.estimated_duration,
+                                    status: payload.new.status,
+                                    priority: payload.new.priority,
+                                    taskType: payload.new.task_type,
+                                    persona: payload.new.persona,
+                                    project: payload.new.project,
+                                    tags: payload.new.tags || [],
+                                    notes: payload.new.notes,
+                                    archived: payload.new.archived,
+                                    isOldTask: payload.new.is_old_task,
+                                    manualOrder: payload.new.manual_order,
+                                    subtasks: payload.new.subtasks || []
+                                };
+                                
+                                // Only add if not already in local state
+                                setTasks(prev => {
+                                    const exists = prev.some(t => t.id === newTask.id);
+                                    if (exists) return prev;
+                                    console.log('✨ Adding new task from real-time:', newTask.text);
+                                    return [...prev, newTask];
+                                });
+                            }
+                            
+                            if (payload.eventType === 'UPDATE') {
+                                const updatedTask = {
+                                    id: payload.new.id,
+                                    supabaseId: payload.new.id,
+                                    text: payload.new.text,
+                                    scheduledDate: payload.new.scheduled_date,
+                                    dueDate: payload.new.due_date,
+                                    timeSlot: payload.new.time_slot,
+                                    estimatedDuration: payload.new.estimated_duration,
+                                    status: payload.new.status,
+                                    priority: payload.new.priority,
+                                    taskType: payload.new.task_type,
+                                    persona: payload.new.persona,
+                                    project: payload.new.project,
+                                    tags: payload.new.tags || [],
+                                    notes: payload.new.notes,
+                                    archived: payload.new.archived,
+                                    isOldTask: payload.new.is_old_task,
+                                    manualOrder: payload.new.manual_order,
+                                    subtasks: payload.new.subtasks || []
+                                };
+                                
+                                setTasks(prev => {
+                                    const index = prev.findIndex(t => t.id === updatedTask.id);
+                                    if (index === -1) return prev;
+                                    console.log('🔄 Updating task from real-time:', updatedTask.text);
+                                    const newTasks = [...prev];
+                                    newTasks[index] = updatedTask;
+                                    return newTasks;
+                                });
+                            }
+                            
+                            if (payload.eventType === 'DELETE') {
+                                const deletedId = payload.old.id;
+                                setTasks(prev => {
+                                    console.log('🗑️ Deleting task from real-time:', deletedId);
+                                    return prev.filter(t => t.id !== deletedId);
+                                });
+                            }
+                        }
+                    )
+                    .subscribe((status) => {
+                        console.log('📡 Tasks subscription status:', status);
+                    });
+                
+                // Subscribe to events table changes
+                const eventsSubscription = supabase
+                    .channel('events-changes')
+                    .on(
+                        'postgres_changes',
+                        {
+                            event: '*',
+                            schema: 'public',
+                            table: 'events',
+                            filter: `user_id=eq.${user.id}`
+                        },
+                        (payload) => {
+                            console.log('📥 Events change detected:', payload.eventType);
+                            
+                            if (payload.eventType === 'INSERT') {
+                                const newEvent = {
+                                    id: payload.new.id,
+                                    supabaseId: payload.new.id,
+                                    type: 'event',
+                                    text: payload.new.text,
+                                    scheduledDate: payload.new.start_date,
+                                    endDate: payload.new.end_date,
+                                    startTime: payload.new.start_time,
+                                    endTime: payload.new.end_time,
+                                    allDay: payload.new.all_day,
+                                    color: payload.new.color,
+                                    notes: payload.new.notes,
+                                    tags: payload.new.tags || [],
+                                    persona: payload.new.persona,
+                                    project: payload.new.project,
+                                    priority: payload.new.priority,
+                                    tasks: [],
+                                    status: 'upcoming'
+                                };
+                                
+                                setEvents(prev => {
+                                    const exists = prev.some(e => e.id === newEvent.id);
+                                    if (exists) return prev;
+                                    console.log('✨ Adding new event from real-time:', newEvent.text);
+                                    return [...prev, newEvent];
+                                });
+                            }
+                            
+                            if (payload.eventType === 'UPDATE') {
+                                const updatedEvent = {
+                                    id: payload.new.id,
+                                    supabaseId: payload.new.id,
+                                    type: 'event',
+                                    text: payload.new.text,
+                                    scheduledDate: payload.new.start_date,
+                                    endDate: payload.new.end_date,
+                                    startTime: payload.new.start_time,
+                                    endTime: payload.new.end_time,
+                                    allDay: payload.new.all_day,
+                                    color: payload.new.color,
+                                    notes: payload.new.notes,
+                                    tags: payload.new.tags || [],
+                                    persona: payload.new.persona,
+                                    project: payload.new.project,
+                                    priority: payload.new.priority,
+                                    tasks: [],
+                                    status: 'upcoming'
+                                };
+                                
+                                setEvents(prev => {
+                                    const index = prev.findIndex(e => e.id === updatedEvent.id);
+                                    if (index === -1) return prev;
+                                    console.log('🔄 Updating event from real-time:', updatedEvent.text);
+                                    const newEvents = [...prev];
+                                    newEvents[index] = updatedEvent;
+                                    return newEvents;
+                                });
+                            }
+                            
+                            if (payload.eventType === 'DELETE') {
+                                const deletedId = payload.old.id;
+                                setEvents(prev => {
+                                    console.log('🗑️ Deleting event from real-time:', deletedId);
+                                    return prev.filter(e => e.id !== deletedId);
+                                });
+                            }
+                        }
+                    )
+                    .subscribe((status) => {
+                        console.log('📡 Events subscription status:', status);
+                    });
+                
+                // Cleanup subscriptions on unmount
+                return () => {
+                    console.log('🔌 Unsubscribing from real-time channels');
+                    tasksSubscription.unsubscribe();
+                    eventsSubscription.unsubscribe();
+                };
+            }, [user]);
             
             // ====== V2.5.0-SYNC: EVENTS SYNC FUNCTIONS ======
             
@@ -2927,9 +3133,23 @@
                                     <div>⏰ {event.startTime} - {event.endTime}</div>
                                     {event.persona && <div>👤 {event.persona}</div>}
                                     {event.project && <div>📁 {event.project}</div>}
+                                    {event.priority && (
+                                        <div>
+                                            🎯 Priority: <span className={`font-semibold ${
+                                                event.priority === 'urgent' ? 'text-red-600' :
+                                                event.priority === 'high' ? 'text-orange-600' :
+                                                event.priority === 'low' ? 'text-green-600' :
+                                                'text-blue-600'
+                                            }`}>{event.priority}</span>
+                                        </div>
+                                    )}
                                     {event.tags && event.tags.length > 0 && (
                                         <div>🏷️ {Array.isArray(event.tags) ? event.tags.join(', ') : event.tags}</div>
                                     )}
+                                    {/* Notes always visible */}
+                                    <div className="text-sm">
+                                        📝 {event.notes || <span className="text-gray-400 italic">No notes</span>}
+                                    </div>
                                     {event.tasks && event.tasks.length > 0 && (
                                         <div>📋 {event.tasks.length} task{event.tasks.length !== 1 ? 's' : ''}</div>
                                     )}
@@ -2976,10 +3196,6 @@
                         
                         {expanded && (
                             <div className="mt-3 pt-3 border-t space-y-2">
-                                {/* Always show notes field */}
-                                <div className="text-sm">
-                                    <strong>Notes:</strong> {event.notes || <span className="text-gray-400 italic">No notes</span>}
-                                </div>
                                 {event.tasks && event.tasks.length > 0 && (
                                     <div>
                                         <strong className="text-sm">Tasks in this event:</strong>
