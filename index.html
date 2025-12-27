@@ -1098,11 +1098,44 @@
                         console.log('📡 Events subscription status:', status);
                     });
                 
+                // Subscribe to custom_lists table changes
+                const listsSubscription = supabase
+                    .channel('lists-changes')
+                    .on(
+                        'postgres_changes',
+                        {
+                            event: '*',
+                            schema: 'public',
+                            table: 'custom_lists',
+                            filter: `user_id=eq.${user.id}`
+                        },
+                        (payload) => {
+                            console.log('📥 Custom list change detected:', payload.eventType);
+                            
+                            if (payload.eventType === 'INSERT' || payload.eventType === 'UPDATE') {
+                                // Reload all custom lists to get updated task references
+                                loadCustomListsFromSupabase();
+                            }
+                            
+                            if (payload.eventType === 'DELETE') {
+                                const deletedId = payload.old.id;
+                                setCustomLists(prev => {
+                                    console.log('🗑️ Deleting custom list from real-time:', deletedId);
+                                    return prev.filter(l => l.id !== deletedId);
+                                });
+                            }
+                        }
+                    )
+                    .subscribe((status) => {
+                        console.log('📡 Custom lists subscription status:', status);
+                    });
+                
                 // Cleanup subscriptions on unmount
                 return () => {
                     console.log('🔌 Unsubscribing from real-time channels');
                     tasksSubscription.unsubscribe();
                     eventsSubscription.unsubscribe();
+                    listsSubscription.unsubscribe();
                 };
             }, [user]);
             
@@ -1305,6 +1338,213 @@
                     console.error('❌ Events migration error:', error);
                 }
             };
+            
+            // ====== V2.5.4-SYNC: CUSTOM LISTS SYNC FUNCTIONS ======
+            
+            const [hasListsSynced, setHasListsSynced] = useState(false);
+            
+            // Save a custom list to Supabase
+            const saveCustomListToSupabase = async (list) => {
+                if (!user) return;
+                if (isLoadingFromSupabase) return;
+                
+                try {
+                    setSyncStatus('syncing');
+                    
+                    // Extract task IDs from task objects
+                    const taskIds = list.tasks ? list.tasks.map(t => t.id) : [];
+                    
+                    const listData = {
+                        user_id: user.id,
+                        name: list.name,
+                        icon: list.icon || '📝',
+                        color: list.color || '#3b82f6',
+                        task_ids: taskIds,
+                        list_order: list.order || 0
+                    };
+                    
+                    if (list.supabaseId) {
+                        // Update existing list
+                        const { data, error } = await supabase
+                            .from('custom_lists')
+                            .update(listData)
+                            .eq('id', list.supabaseId)
+                            .eq('user_id', user.id)
+                            .select()
+                            .single();
+                        
+                        if (error) throw error;
+                        console.log('✅ Custom list updated in Supabase:', list.name);
+                        return data;
+                    } else {
+                        // Insert new list
+                        const { data, error } = await supabase
+                            .from('custom_lists')
+                            .insert([listData])
+                            .select()
+                            .single();
+                        
+                        if (error) throw error;
+                        console.log('✅ Custom list saved to Supabase:', list.name);
+                        return data;
+                    }
+                } catch (error) {
+                    console.error('❌ Error saving custom list:', error);
+                    setSyncStatus('error');
+                    return null;
+                }
+            };
+            
+            // Load custom lists from Supabase
+            const loadCustomListsFromSupabase = async () => {
+                if (!user) return;
+                
+                try {
+                    setIsLoadingFromSupabase(true);
+                    
+                    const { data, error } = await supabase
+                        .from('custom_lists')
+                        .select('*')
+                        .eq('user_id', user.id)
+                        .order('list_order', { ascending: true });
+                    
+                    if (error) throw error;
+                    
+                    console.log('✅ Loaded custom lists from Supabase:', data.length);
+                    
+                    // Convert Supabase format to app format
+                    const supabaseLists = data.map(l => {
+                        // Get task objects from task IDs
+                        const listTasks = (l.task_ids || [])
+                            .map(taskId => tasks.find(t => t.id === taskId))
+                            .filter(Boolean); // Remove undefined
+                        
+                        return {
+                            id: l.id,
+                            supabaseId: l.id,
+                            name: l.name,
+                            icon: l.icon || '📝',
+                            color: l.color || '#3b82f6',
+                            tasks: listTasks,
+                            order: l.list_order || 0
+                        };
+                    });
+                    
+                    setCustomLists(supabaseLists);
+                    
+                    // Mark as synced
+                    localStorage.setItem('ln_has_synced_lists_to_supabase', 'true');
+                    setHasListsSynced(true);
+                    
+                    setIsLoadingFromSupabase(false);
+                    console.log('✅ Custom lists sync complete');
+                    
+                } catch (error) {
+                    console.error('❌ Error loading custom lists:', error);
+                    setIsLoadingFromSupabase(false);
+                }
+            };
+            
+            // Delete custom list from Supabase
+            const deleteCustomListFromSupabase = async (list) => {
+                if (!user || !list.supabaseId) return;
+                
+                try {
+                    const { error } = await supabase
+                        .from('custom_lists')
+                        .delete()
+                        .eq('id', list.supabaseId)
+                        .eq('user_id', user.id);
+                    
+                    if (error) throw error;
+                    console.log('✅ Custom list deleted from Supabase:', list.name);
+                } catch (error) {
+                    console.error('❌ Error deleting custom list:', error);
+                }
+            };
+            
+            // Migrate localStorage custom lists to Supabase
+            const migrateCustomListsToSupabase = async () => {
+                if (!user) return;
+                
+                try {
+                    const localLists = JSON.parse(localStorage.getItem('ln_customLists') || '[]');
+                    
+                    if (localLists.length === 0) {
+                        console.log('✅ No custom lists to migrate');
+                        return;
+                    }
+                    
+                    console.log('📤 Migrating', localLists.length, 'custom lists...');
+                    
+                    const listsToInsert = localLists.map((list, index) => {
+                        // Extract task IDs
+                        const taskIds = (list.tasks || []).map(t => t.id);
+                        
+                        return {
+                            user_id: user.id,
+                            name: list.name,
+                            icon: list.icon || '📝',
+                            color: list.color || '#3b82f6',
+                            task_ids: taskIds,
+                            list_order: index
+                        };
+                    });
+                    
+                    const { data, error } = await supabase
+                        .from('custom_lists')
+                        .insert(listsToInsert)
+                        .select();
+                    
+                    if (error) throw error;
+                    
+                    console.log('✅ Custom lists migration complete!', data.length, 'lists uploaded');
+                    
+                    // Mark migration complete
+                    localStorage.setItem('ln_has_synced_lists_to_supabase', 'true');
+                    setHasListsSynced(true);
+                    
+                    // Reload lists from Supabase
+                    await loadCustomListsFromSupabase();
+                    
+                } catch (error) {
+                    console.error('❌ Custom lists migration error:', error);
+                }
+            };
+            
+            // Load custom lists when user logs in
+            useEffect(() => {
+                const initializeCustomLists = async () => {
+                    if (!user || isLoadingFromSupabase) return;
+                    
+                    // Check if already synced
+                    const hasAlreadySynced = localStorage.getItem('ln_has_synced_lists_to_supabase') === 'true';
+                    
+                    if (hasAlreadySynced) {
+                        // Already synced, just load from Supabase
+                        setHasListsSynced(true);
+                        await loadCustomListsFromSupabase();
+                        return;
+                    }
+                    
+                    // First time - check if we need to migrate localStorage lists
+                    const localLists = JSON.parse(localStorage.getItem('ln_customLists') || '[]');
+                    
+                    if (localLists.length > 0) {
+                        // Migrate localStorage lists
+                        console.log('📤 Found', localLists.length, 'local custom lists to migrate');
+                        await migrateCustomListsToSupabase();
+                    } else {
+                        // No local lists, just load from Supabase
+                        await loadCustomListsFromSupabase();
+                    }
+                };
+                
+                if (user && !hasListsSynced && tasks.length > 0) {
+                    // Wait for tasks to load first (we need them to populate list tasks)
+                    initializeCustomLists();
+                }
+            }, [user, hasListsSynced, tasks.length]);
             
             // Load events from Supabase when user logs in
             useEffect(() => {
@@ -1873,24 +2113,42 @@
                 }));
             };
 
-            const handleAddNewList = () => {
+            const handleAddNewList = async () => {
                 const input = document.getElementById('newListInput');
                 if (!input) return;
                 
                 const name = input.value.trim();
                 if (!name) return;
                 
-                setCustomLists(prev => [...prev, {
-                    id: Date.now(),
+                const tempId = `temp_list_${Date.now()}`;
+                const newList = {
+                    id: tempId,
                     name,
-                    tasks: []
-                }]);
+                    tasks: [],
+                    icon: '📝',
+                    color: '#3b82f6'
+                };
                 
+                // Optimistic update
+                setCustomLists(prev => [...prev, newList]);
                 input.value = '';
                 showToast(`List "${name}" created`);
+                
+                // Save to Supabase
+                if (user) {
+                    const savedList = await saveCustomListToSupabase(newList);
+                    if (savedList) {
+                        // Replace temp ID with Supabase ID
+                        setCustomLists(prev => prev.map(l =>
+                            l.id === tempId
+                                ? { ...l, id: savedList.id, supabaseId: savedList.id }
+                                : l
+                        ));
+                    }
+                }
             };
 
-            const handleDeleteList = (listId) => {
+            const handleDeleteList = async (listId) => {
                 const list = customLists.find(l => l.id === listId);
                 if (!list) return;
                 
@@ -1900,11 +2158,17 @@
                     }
                 }
                 
+                // Optimistic delete
                 setCustomLists(prev => prev.filter(l => l.id !== listId));
                 if (currentView === `list:${listId}`) {
                     setCurrentView('list');
                 }
                 showToast('List deleted');
+                
+                // Delete from Supabase
+                if (user && list.supabaseId) {
+                    await deleteCustomListFromSupabase(list);
+                }
             };
 
             // ====== STATUS SYSTEM HELPERS ======
@@ -2134,11 +2398,15 @@
                         const task = tasks.find(t => t.id === item.id);
                         if (task) {
                             setTasks(prev => prev.filter(t => t.id !== item.id));
-                            setCustomLists(prev => prev.map(list =>
-                                list.id === targetListId
-                                    ? {...list, tasks: [...list.tasks, task]}
-                                    : list
-                            ));
+                            setCustomLists(prev => prev.map(list => {
+                                if (list.id === targetListId) {
+                                    const updatedList = {...list, tasks: [...list.tasks, task]};
+                                    // Save to Supabase
+                                    if (user) saveCustomListToSupabase(updatedList);
+                                    return updatedList;
+                                }
+                                return list;
+                            }));
                             showToast('Task moved to list', true);
                         }
                     }
@@ -2148,11 +2416,18 @@
                         const task = sourceList?.tasks.find(t => t.id === item.id);
                         if (task && item.sourceListId !== targetListId) {
                             setCustomLists(prev => prev.map(list => {
+                                let updatedList = list;
                                 if (list.id === item.sourceListId) {
-                                    return {...list, tasks: list.tasks.filter(t => t.id !== item.id)};
+                                    updatedList = {...list, tasks: list.tasks.filter(t => t.id !== item.id)};
+                                    // Save to Supabase
+                                    if (user) saveCustomListToSupabase(updatedList);
+                                    return updatedList;
                                 }
                                 if (list.id === targetListId) {
-                                    return {...list, tasks: [...list.tasks, task]};
+                                    updatedList = {...list, tasks: [...list.tasks, task]};
+                                    // Save to Supabase
+                                    if (user) saveCustomListToSupabase(updatedList);
+                                    return updatedList;
                                 }
                                 return list;
                             }));
@@ -2179,13 +2454,21 @@
                         taskList.splice(draggedIndex < targetIndex ? newIndex - 1 : newIndex, 0, draggedTask);
                         
                         // Assign manual order values
-                        const updatedTasks = tasks.map((task, idx) => {
-                            const newPosition = taskList.findIndex(t => t.id === task.id);
-                            return { ...task, manualOrder: newPosition };
-                        });
+                        const updatedTasks = taskList.map((task, idx) => ({
+                            ...task,
+                            manualOrder: idx
+                        }));
                         
                         setTasks(updatedTasks);
                         setIsManualOrder(true);
+                        
+                        // CRITICAL FIX: Save manual order to Supabase
+                        if (user) {
+                            updatedTasks.forEach(task => {
+                                saveTaskToSupabase(task);
+                            });
+                        }
+                        
                         showToast('Task reordered', true);
                     }
                 }
