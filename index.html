@@ -655,13 +655,24 @@
                 try {
                     setSyncStatus('syncing');
                     
+                    // SURGICAL FIX #1: Normalize timeSlot format to HH:mm:ss
+                    const normalizeTimeSlot = (timeSlot) => {
+                        if (!timeSlot) return null;
+                        // If already HH:mm:ss format, return as-is
+                        if (/^\d{2}:\d{2}:\d{2}$/.test(timeSlot)) return timeSlot;
+                        // If HH:mm format, add :00
+                        if (/^\d{2}:\d{2}$/.test(timeSlot)) return `${timeSlot}:00`;
+                        // Otherwise return as-is
+                        return timeSlot;
+                    };
+                    
                     // Prepare task for Supabase (remove id if it's a new task)
                     const taskData = {
                         user_id: user.id,
                         text: task.text,
                         scheduled_date: task.scheduledDate || null,
                         due_date: task.dueDate || null,
-                        time_slot: task.timeSlot || null,
+                        time_slot: normalizeTimeSlot(task.timeSlot),
                         estimated_duration: task.estimatedDuration || 30,
                         status: task.status || 'not-started',
                         priority: task.priority || 'medium',
@@ -988,12 +999,15 @@
                                     subtasks: payload.new.subtasks || []
                                 };
                                 
+                                // SURGICAL FIX #2: Merge updates instead of replacing
+                                // This preserves any local changes that haven't synced yet
                                 setTasks(prev => {
                                     const index = prev.findIndex(t => t.id === updatedTask.id);
                                     if (index === -1) return prev;
                                     console.log('🔄 Updating task from real-time:', updatedTask.text);
                                     const newTasks = [...prev];
-                                    newTasks[index] = updatedTask;
+                                    // Merge instead of replace (preserve local fields if newer)
+                                    newTasks[index] = { ...newTasks[index], ...updatedTask };
                                     return newTasks;
                                 });
                             }
@@ -2371,6 +2385,18 @@
                             
                             setTasks(updatedTasks);
                             setIsManualOrder(true);
+                            
+                            // SURGICAL FIX #3: Save manualOrder to Supabase
+                            if (user) {
+                                // Only save tasks whose manualOrder changed
+                                visibleTasks.forEach((task, index) => {
+                                    const updatedTask = updatedTasks.find(t => t.id === task.id);
+                                    if (updatedTask && updatedTask.manualOrder !== task.manualOrder) {
+                                        saveTaskToSupabase(updatedTask);
+                                    }
+                                });
+                            }
+                            
                             showToast('Task reordered', true);
                         } else {
                             console.log('❌ REORDER: Invalid indices!');
@@ -3819,7 +3845,7 @@
                         {/* Tasks for selected date */}
                         <div className="bg-white rounded-lg shadow p-4">
                             <h3 className="text-lg font-bold mb-3">
-                                Tasks for {selectedDate}
+                                Tasks for {formatDateDisplay(selectedDate)}
                             </h3>
                             {tasksOnSelectedDate.length === 0 ? (
                                 <div className="text-center py-8">
@@ -3892,7 +3918,7 @@
                 return (
                     <div className="bg-white rounded-lg shadow p-4">
                         <div className="flex justify-between items-center mb-4">
-                            <h2 className="text-xl font-bold">Timeline for {selectedDate}</h2>
+                            <h2 className="text-xl font-bold">Timeline for {formatDateDisplay(selectedDate)}</h2>
                             <input
                                 type="date"
                                 value={selectedDate}
