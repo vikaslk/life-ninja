@@ -2379,6 +2379,14 @@
                             
                             setTasks(updatedTasks);
                             setIsManualOrder(true);
+                            
+                            // BUGFIX: Save manualOrder to Supabase
+                            if (user) {
+                                updatedTasks.forEach(task => {
+                                    saveTaskToSupabase(task);
+                                });
+                            }
+                            
                             showToast('Task reordered', true);
                         } else {
                             console.log('❌ REORDER: Invalid indices!');
@@ -3827,7 +3835,7 @@
                         {/* Tasks for selected date */}
                         <div className="bg-white rounded-lg shadow p-4">
                             <h3 className="text-lg font-bold mb-3">
-                                Tasks for {selectedDate}
+                                Tasks for {formatDateDisplay(selectedDate)}
                             </h3>
                             {tasksOnSelectedDate.length === 0 ? (
                                 <div className="text-center py-8">
@@ -3900,7 +3908,7 @@
                 return (
                     <div className="bg-white rounded-lg shadow p-4">
                         <div className="flex justify-between items-center mb-4">
-                            <h2 className="text-xl font-bold">Timeline for {selectedDate}</h2>
+                            <h2 className="text-xl font-bold">Timeline for {formatDateDisplay(selectedDate)}</h2>
                             <input
                                 type="date"
                                 value={selectedDate}
