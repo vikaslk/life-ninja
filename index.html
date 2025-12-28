@@ -179,21 +179,7 @@
         const formatDate = (date) => {
             if (!date) return null;
             const d = new Date(date);
-            // Use local timezone instead of UTC
-            const year = d.getFullYear();
-            const month = String(d.getMonth() + 1).padStart(2, '0');
-            const day = String(d.getDate()).padStart(2, '0');
-            return `${year}-${month}-${day}`;
-        };
-        
-        // NEW: Format date for display (DD/MM/YYYY)
-        const formatDateDisplay = (date) => {
-            if (!date) return null;
-            const d = new Date(date);
-            const day = String(d.getDate()).padStart(2, '0');
-            const month = String(d.getMonth() + 1).padStart(2, '0');
-            const year = d.getFullYear();
-            return `${day}/${month}/${year}`;
+            return d.toISOString().split('T')[0];
         };
 
         const parseDate = (dateStr) => {
@@ -572,21 +558,12 @@
             
             const handleLogout = async () => {
                 try {
-                    console.log('🚪 Logging out...');
                     await supabase.auth.signOut();
-                    
-                    // Clear all sync flags
-                    localStorage.removeItem('ln_has_synced_to_supabase');
-                    localStorage.removeItem('ln_has_synced_events_to_supabase');
-                    
-                    console.log('✅ Logged out successfully');
-                    
-                    // Force full page reload (more aggressive than window.location.reload())
-                    window.location.href = window.location.href;
+                    console.log('✅ Logged out');
+                    // Reload page to clear all state
+                    window.location.reload();
                 } catch (error) {
                     console.error('❌ Logout error:', error);
-                    // Force reload anyway
-                    window.location.href = window.location.href;
                 }
             };
             
@@ -603,41 +580,32 @@
                 const checkMigration = async () => {
                     if (!user) return;
                     
-                    // CRITICAL: Check flag FIRST - if already synced, NEVER show banner
+                    // Check if already synced (flag in localStorage)
                     const hasAlreadySynced = localStorage.getItem('ln_has_synced_to_supabase') === 'true';
                     if (hasAlreadySynced) {
                         setHasSyncedOnce(true);
-                        setNeedsMigration(false); // Explicitly set to false
-                        console.log('✅ Already synced - skipping migration check');
                         return;
                     }
                     
                     // Check if we have localStorage tasks
                     const localTasks = JSON.parse(localStorage.getItem('ln_tasks') || '[]');
                     if (localTasks.length === 0) {
-                        // No local tasks, just mark as synced
-                        localStorage.setItem('ln_has_synced_to_supabase', 'true');
-                        setHasSyncedOnce(true);
+                        // No local tasks, load from Supabase
                         return;
                     }
                     
                     // Check if Supabase has any tasks
                     try {
-                        const { count, error } = await supabase
+                        const { data, error } = await supabase
                             .from('tasks')
-                            .select('*', { count: 'exact', head: true });
+                            .select('id', { count: 'exact', head: true });
                         
                         if (error) throw error;
                         
                         // If no tasks in Supabase but have local tasks, need migration
-                        if (count === 0) {
+                        if (data === null || (data && data.length === 0)) {
                             setNeedsMigration(true);
                             console.log('📤 Migration needed:', localTasks.length, 'tasks in localStorage');
-                        } else {
-                            // Has tasks in Supabase - mark as already synced
-                            localStorage.setItem('ln_has_synced_to_supabase', 'true');
-                            setHasSyncedOnce(true);
-                            console.log('✅ Supabase has', count, 'tasks - no migration needed');
                         }
                     } catch (error) {
                         console.error('❌ Error checking migration:', error);
@@ -792,31 +760,8 @@
                         createdAt: t.created_at
                     }));
                     
-                    // CRITICAL: Sort consistently across all devices
-                    // Priority: manual_order (if set) > scheduled_date > created_at
-                    const sortedTasks = supabaseTasks.sort((a, b) => {
-                        // First: Manual order (if both have it)
-                        if (a.manualOrder !== null && b.manualOrder !== null) {
-                            return a.manualOrder - b.manualOrder;
-                        }
-                        // If only one has manual order, it goes first
-                        if (a.manualOrder !== null) return -1;
-                        if (b.manualOrder !== null) return 1;
-                        
-                        // Second: Scheduled date (null dates go last)
-                        if (a.scheduledDate && b.scheduledDate) {
-                            const dateCompare = a.scheduledDate.localeCompare(b.scheduledDate);
-                            if (dateCompare !== 0) return dateCompare;
-                        }
-                        if (a.scheduledDate && !b.scheduledDate) return -1;
-                        if (!a.scheduledDate && b.scheduledDate) return 1;
-                        
-                        // Third: Created at
-                        return new Date(a.createdAt) - new Date(b.createdAt);
-                    });
-                    
                     // Use Supabase as single source of truth
-                    setTasks(sortedTasks);
+                    setTasks(supabaseTasks);
                     
                     // Mark that we've synced successfully
                     localStorage.setItem('ln_has_synced_to_supabase', 'true');
@@ -912,199 +857,6 @@
                     loadTasksFromSupabase();
                 }
             }, [user, needsMigration, hasSyncedOnce]);
-            
-            // ====== PHASE 3: REAL-TIME SYNC ======
-            
-            // Subscribe to real-time changes for tasks
-            useEffect(() => {
-                if (!user) return;
-                
-                console.log('🔔 Setting up real-time subscriptions...');
-                
-                // Subscribe to tasks table changes
-                const tasksSubscription = supabase
-                    .channel('tasks-changes')
-                    .on(
-                        'postgres_changes',
-                        {
-                            event: '*', // Listen to all events (INSERT, UPDATE, DELETE)
-                            schema: 'public',
-                            table: 'tasks',
-                            filter: `user_id=eq.${user.id}`
-                        },
-                        (payload) => {
-                            console.log('📥 Tasks change detected:', payload.eventType);
-                            
-                            if (payload.eventType === 'INSERT') {
-                                const newTask = {
-                                    id: payload.new.id,
-                                    supabaseId: payload.new.id,
-                                    text: payload.new.text,
-                                    scheduledDate: payload.new.scheduled_date,
-                                    dueDate: payload.new.due_date,
-                                    timeSlot: payload.new.time_slot,
-                                    estimatedDuration: payload.new.estimated_duration,
-                                    status: payload.new.status,
-                                    priority: payload.new.priority,
-                                    taskType: payload.new.task_type,
-                                    persona: payload.new.persona,
-                                    project: payload.new.project,
-                                    tags: payload.new.tags || [],
-                                    notes: payload.new.notes,
-                                    archived: payload.new.archived,
-                                    isOldTask: payload.new.is_old_task,
-                                    manualOrder: payload.new.manual_order,
-                                    subtasks: payload.new.subtasks || []
-                                };
-                                
-                                // Only add if not already in local state
-                                setTasks(prev => {
-                                    const exists = prev.some(t => t.id === newTask.id);
-                                    if (exists) return prev;
-                                    console.log('✨ Adding new task from real-time:', newTask.text);
-                                    return [...prev, newTask];
-                                });
-                            }
-                            
-                            if (payload.eventType === 'UPDATE') {
-                                const updatedTask = {
-                                    id: payload.new.id,
-                                    supabaseId: payload.new.id,
-                                    text: payload.new.text,
-                                    scheduledDate: payload.new.scheduled_date,
-                                    dueDate: payload.new.due_date,
-                                    timeSlot: payload.new.time_slot,
-                                    estimatedDuration: payload.new.estimated_duration,
-                                    status: payload.new.status,
-                                    priority: payload.new.priority,
-                                    taskType: payload.new.task_type,
-                                    persona: payload.new.persona,
-                                    project: payload.new.project,
-                                    tags: payload.new.tags || [],
-                                    notes: payload.new.notes,
-                                    archived: payload.new.archived,
-                                    isOldTask: payload.new.is_old_task,
-                                    manualOrder: payload.new.manual_order,
-                                    subtasks: payload.new.subtasks || []
-                                };
-                                
-                                setTasks(prev => {
-                                    const index = prev.findIndex(t => t.id === updatedTask.id);
-                                    if (index === -1) return prev;
-                                    console.log('🔄 Updating task from real-time:', updatedTask.text);
-                                    const newTasks = [...prev];
-                                    newTasks[index] = updatedTask;
-                                    return newTasks;
-                                });
-                            }
-                            
-                            if (payload.eventType === 'DELETE') {
-                                const deletedId = payload.old.id;
-                                setTasks(prev => {
-                                    console.log('🗑️ Deleting task from real-time:', deletedId);
-                                    return prev.filter(t => t.id !== deletedId);
-                                });
-                            }
-                        }
-                    )
-                    .subscribe((status) => {
-                        console.log('📡 Tasks subscription status:', status);
-                    });
-                
-                // Subscribe to events table changes
-                const eventsSubscription = supabase
-                    .channel('events-changes')
-                    .on(
-                        'postgres_changes',
-                        {
-                            event: '*',
-                            schema: 'public',
-                            table: 'events',
-                            filter: `user_id=eq.${user.id}`
-                        },
-                        (payload) => {
-                            console.log('📥 Events change detected:', payload.eventType);
-                            
-                            if (payload.eventType === 'INSERT') {
-                                const newEvent = {
-                                    id: payload.new.id,
-                                    supabaseId: payload.new.id,
-                                    type: 'event',
-                                    text: payload.new.text,
-                                    scheduledDate: payload.new.start_date,
-                                    endDate: payload.new.end_date,
-                                    startTime: payload.new.start_time,
-                                    endTime: payload.new.end_time,
-                                    allDay: payload.new.all_day,
-                                    color: payload.new.color,
-                                    notes: payload.new.notes,
-                                    tags: payload.new.tags || [],
-                                    persona: payload.new.persona,
-                                    project: payload.new.project,
-                                    priority: payload.new.priority,
-                                    tasks: [],
-                                    status: 'upcoming'
-                                };
-                                
-                                setEvents(prev => {
-                                    const exists = prev.some(e => e.id === newEvent.id);
-                                    if (exists) return prev;
-                                    console.log('✨ Adding new event from real-time:', newEvent.text);
-                                    return [...prev, newEvent];
-                                });
-                            }
-                            
-                            if (payload.eventType === 'UPDATE') {
-                                const updatedEvent = {
-                                    id: payload.new.id,
-                                    supabaseId: payload.new.id,
-                                    type: 'event',
-                                    text: payload.new.text,
-                                    scheduledDate: payload.new.start_date,
-                                    endDate: payload.new.end_date,
-                                    startTime: payload.new.start_time,
-                                    endTime: payload.new.end_time,
-                                    allDay: payload.new.all_day,
-                                    color: payload.new.color,
-                                    notes: payload.new.notes,
-                                    tags: payload.new.tags || [],
-                                    persona: payload.new.persona,
-                                    project: payload.new.project,
-                                    priority: payload.new.priority,
-                                    tasks: [],
-                                    status: 'upcoming'
-                                };
-                                
-                                setEvents(prev => {
-                                    const index = prev.findIndex(e => e.id === updatedEvent.id);
-                                    if (index === -1) return prev;
-                                    console.log('🔄 Updating event from real-time:', updatedEvent.text);
-                                    const newEvents = [...prev];
-                                    newEvents[index] = updatedEvent;
-                                    return newEvents;
-                                });
-                            }
-                            
-                            if (payload.eventType === 'DELETE') {
-                                const deletedId = payload.old.id;
-                                setEvents(prev => {
-                                    console.log('🗑️ Deleting event from real-time:', deletedId);
-                                    return prev.filter(e => e.id !== deletedId);
-                                });
-                            }
-                        }
-                    )
-                    .subscribe((status) => {
-                        console.log('📡 Events subscription status:', status);
-                    });
-                
-                // Cleanup subscriptions on unmount
-                return () => {
-                    console.log('🔌 Unsubscribing from real-time channels');
-                    tasksSubscription.unsubscribe();
-                    eventsSubscription.unsubscribe();
-                };
-            }, [user]);
             
             // ====== V2.5.0-SYNC: EVENTS SYNC FUNCTIONS ======
             
@@ -2105,17 +1857,7 @@
                     updateTask(item.id, { scheduledDate: zoneData.date });
                     showToast(`Task moved to ${zoneData.date}`, true);
                 } else if (zone === 'timeline-slot' && type === 'task') {
-                    // CRITICAL FIX: Ensure task has scheduled date when dropped in timeline
-                    const updates = { timeSlot: zoneData.slot };
-                    
-                    // If task doesn't have a scheduled date, set it to selected date
-                    const task = tasks.find(t => t.id === item.id);
-                    if (!task?.scheduledDate) {
-                        updates.scheduledDate = selectedDate;
-                        console.log('📅 Setting scheduled date:', selectedDate);
-                    }
-                    
-                    updateTask(item.id, updates);
+                    updateTask(item.id, { timeSlot: zoneData.slot });
                     showToast(`Task scheduled at ${zoneData.slot}`, true);
                 } else if (zone === 'kanban-column' && type === 'task') {
                     updateTask(item.id, { status: zoneData.status });
@@ -2179,21 +1921,13 @@
                         taskList.splice(draggedIndex < targetIndex ? newIndex - 1 : newIndex, 0, draggedTask);
                         
                         // Assign manual order values
-                        const updatedTasks = taskList.map((task, idx) => ({
-                            ...task,
-                            manualOrder: idx
-                        }));
+                        const updatedTasks = tasks.map((task, idx) => {
+                            const newPosition = taskList.findIndex(t => t.id === task.id);
+                            return { ...task, manualOrder: newPosition };
+                        });
                         
                         setTasks(updatedTasks);
                         setIsManualOrder(true);
-                        
-                        // BUGFIX: Save manualOrder to Supabase
-                        if (user) {
-                            updatedTasks.forEach(task => {
-                                saveTaskToSupabase(task);
-                            });
-                        }
-                        
                         showToast('Task reordered', true);
                     }
                 }
@@ -2379,14 +2113,6 @@
                             
                             setTasks(updatedTasks);
                             setIsManualOrder(true);
-                            
-                            // BUGFIX: Save manualOrder to Supabase
-                            if (user) {
-                                updatedTasks.forEach(task => {
-                                    saveTaskToSupabase(task);
-                                });
-                            }
-                            
                             showToast('Task reordered', true);
                         } else {
                             console.log('❌ REORDER: Invalid indices!');
@@ -2703,7 +2429,7 @@
                                     {/* Date info */}
                                     {showDate && task.scheduledDate && (
                                         <div className="text-xs text-gray-500 mt-1">
-                                            📅 {formatDateDisplay(task.scheduledDate)}
+                                            📅 {task.scheduledDate}
                                         </div>
                                     )}
 
@@ -3201,23 +2927,9 @@
                                     <div>⏰ {event.startTime} - {event.endTime}</div>
                                     {event.persona && <div>👤 {event.persona}</div>}
                                     {event.project && <div>📁 {event.project}</div>}
-                                    {event.priority && (
-                                        <div>
-                                            🎯 Priority: <span className={`font-semibold ${
-                                                event.priority === 'urgent' ? 'text-red-600' :
-                                                event.priority === 'high' ? 'text-orange-600' :
-                                                event.priority === 'low' ? 'text-green-600' :
-                                                'text-blue-600'
-                                            }`}>{event.priority}</span>
-                                        </div>
-                                    )}
                                     {event.tags && event.tags.length > 0 && (
                                         <div>🏷️ {Array.isArray(event.tags) ? event.tags.join(', ') : event.tags}</div>
                                     )}
-                                    {/* Notes always visible */}
-                                    <div className="text-sm">
-                                        📝 {event.notes || <span className="text-gray-400 italic">No notes</span>}
-                                    </div>
                                     {event.tasks && event.tasks.length > 0 && (
                                         <div>📋 {event.tasks.length} task{event.tasks.length !== 1 ? 's' : ''}</div>
                                     )}
@@ -3264,6 +2976,10 @@
                         
                         {expanded && (
                             <div className="mt-3 pt-3 border-t space-y-2">
+                                {/* Always show notes field */}
+                                <div className="text-sm">
+                                    <strong>Notes:</strong> {event.notes || <span className="text-gray-400 italic">No notes</span>}
+                                </div>
                                 {event.tasks && event.tasks.length > 0 && (
                                     <div>
                                         <strong className="text-sm">Tasks in this event:</strong>
@@ -3835,7 +3551,7 @@
                         {/* Tasks for selected date */}
                         <div className="bg-white rounded-lg shadow p-4">
                             <h3 className="text-lg font-bold mb-3">
-                                Tasks for {formatDateDisplay(selectedDate)}
+                                Tasks for {selectedDate}
                             </h3>
                             {tasksOnSelectedDate.length === 0 ? (
                                 <div className="text-center py-8">
@@ -3908,7 +3624,7 @@
                 return (
                     <div className="bg-white rounded-lg shadow p-4">
                         <div className="flex justify-between items-center mb-4">
-                            <h2 className="text-xl font-bold">Timeline for {formatDateDisplay(selectedDate)}</h2>
+                            <h2 className="text-xl font-bold">Timeline for {selectedDate}</h2>
                             <input
                                 type="date"
                                 value={selectedDate}
