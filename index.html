@@ -647,6 +647,27 @@
                 checkMigration();
             }, [user]);
             
+            // SURGICAL FIX #5: Time format helper functions (accessible globally)
+            const normalizeTimeSlot = (timeSlot) => {
+                if (!timeSlot) return null;
+                // If already HH:mm:ss format, return as-is
+                if (/^\d{2}:\d{2}:\d{2}$/.test(timeSlot)) return timeSlot;
+                // If HH:mm format, add :00
+                if (/^\d{2}:\d{2}$/.test(timeSlot)) return `${timeSlot}:00`;
+                // Otherwise return as-is
+                return timeSlot;
+            };
+            
+            const denormalizeTimeSlot = (timeSlot) => {
+                if (!timeSlot) return null;
+                // If HH:mm:ss format ending in :00, strip seconds
+                if (/^\d{2}:\d{2}:00$/.test(timeSlot)) {
+                    return timeSlot.substring(0, 5); // "16:30:00" → "16:30"
+                }
+                // Otherwise return as-is
+                return timeSlot;
+            };
+            
             // Save a single task to Supabase
             const saveTaskToSupabase = async (task) => {
                 if (!user) return;
@@ -654,17 +675,6 @@
                 
                 try {
                     setSyncStatus('syncing');
-                    
-                    // SURGICAL FIX #1: Normalize timeSlot format to HH:mm:ss
-                    const normalizeTimeSlot = (timeSlot) => {
-                        if (!timeSlot) return null;
-                        // If already HH:mm:ss format, return as-is
-                        if (/^\d{2}:\d{2}:\d{2}$/.test(timeSlot)) return timeSlot;
-                        // If HH:mm format, add :00
-                        if (/^\d{2}:\d{2}$/.test(timeSlot)) return `${timeSlot}:00`;
-                        // Otherwise return as-is
-                        return timeSlot;
-                    };
                     
                     // Prepare task for Supabase (remove id if it's a new task)
                     const taskData = {
@@ -787,7 +797,7 @@
                         text: t.text,
                         scheduledDate: t.scheduled_date,
                         dueDate: t.due_date,
-                        timeSlot: t.time_slot,
+                        timeSlot: denormalizeTimeSlot(t.time_slot), // FIX #5: Strip :00 seconds
                         estimatedDuration: t.estimated_duration,
                         status: t.status,
                         priority: t.priority,
@@ -953,7 +963,7 @@
                                     text: payload.new.text,
                                     scheduledDate: payload.new.scheduled_date,
                                     dueDate: payload.new.due_date,
-                                    timeSlot: payload.new.time_slot,
+                                    timeSlot: denormalizeTimeSlot(payload.new.time_slot), // FIX #5
                                     estimatedDuration: payload.new.estimated_duration,
                                     status: payload.new.status,
                                     priority: payload.new.priority,
@@ -984,7 +994,7 @@
                                     text: payload.new.text,
                                     scheduledDate: payload.new.scheduled_date,
                                     dueDate: payload.new.due_date,
-                                    timeSlot: payload.new.time_slot,
+                                    timeSlot: denormalizeTimeSlot(payload.new.time_slot), // FIX #5
                                     estimatedDuration: payload.new.estimated_duration,
                                     status: payload.new.status,
                                     priority: payload.new.priority,
