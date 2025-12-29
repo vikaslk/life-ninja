@@ -997,6 +997,14 @@
                             }
                             
                             if (payload.eventType === 'UPDATE') {
+                                // V2.5.7-FIX: Skip manualOrder updates during reordering
+                                // This prevents the "jumping task" bug where tasks reposition randomly
+                                const isManualOrderUpdate = payload.new.manual_order !== payload.old.manual_order;
+                                if (isReorderingRef.current && isManualOrderUpdate) {
+                                    console.log('⏸️ Skipping manual order update during reorder');
+                                    return;
+                                }
+                                
                                 const updatedTask = {
                                     id: payload.new.id,
                                     supabaseId: payload.new.id,
@@ -1479,6 +1487,10 @@
                     console.error('Failed to save isManualOrder:', error);
                 }
             }, [isManualOrder]);
+            
+            // V2.5.7-FIX: Prevent real-time updates from disrupting manual reorder
+            const isReorderingRef = useRef(false);
+            const reorderTimeoutRef = useRef(null);
             const [isSyncingFromRealtime, setIsSyncingFromRealtime] = useState(false);
             
             // V1.3: Events system
@@ -2445,11 +2457,34 @@
                                 
                                 console.log(`💾 Saving ${tasksToSave.length} tasks with new order to Supabase`);
                                 
+                                // V2.5.7-FIX: Block real-time updates during reorder save
+                                isReorderingRef.current = true;
+                                console.log('🔒 Blocking real-time updates during reorder');
+                                
+                                // Clear any existing timeout
+                                if (reorderTimeoutRef.current) {
+                                    clearTimeout(reorderTimeoutRef.current);
+                                }
+                                
                                 // Save all tasks in parallel for faster sync
                                 if (tasksToSave.length > 0) {
                                     Promise.all(tasksToSave.map(task => saveTaskToSupabase(task)))
-                                        .then(() => console.log('✅ Manual order saved to Supabase'))
-                                        .catch(err => console.error('❌ Error saving manual order:', err));
+                                        .then(() => {
+                                            console.log('✅ Manual order saved to Supabase');
+                                            // Unblock after 1 second to allow all real-time events to settle
+                                            reorderTimeoutRef.current = setTimeout(() => {
+                                                isReorderingRef.current = false;
+                                                console.log('🔓 Unblocked real-time updates');
+                                            }, 1000);
+                                        })
+                                        .catch(err => {
+                                            console.error('❌ Error saving manual order:', err);
+                                            // Unblock even on error
+                                            reorderTimeoutRef.current = setTimeout(() => {
+                                                isReorderingRef.current = false;
+                                                console.log('🔓 Unblocked real-time updates (after error)');
+                                            }, 1000);
+                                        });
                                 }
                             }
                             
