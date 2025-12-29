@@ -189,10 +189,12 @@
         // NEW: Format date for display (DD/MM/YYYY)
         const formatDateDisplay = (date) => {
             if (!date) return null;
-            const d = new Date(date);
-            const day = String(d.getDate()).padStart(2, '0');
-            const month = String(d.getMonth() + 1).padStart(2, '0');
-            const year = d.getFullYear();
+            // Handle ISO string dates (from Supabase)
+            const d = typeof date === 'string' ? new Date(date) : date;
+            // Use UTC to avoid timezone issues
+            const day = String(d.getUTCDate()).padStart(2, '0');
+            const month = String(d.getUTCMonth() + 1).padStart(2, '0');
+            const year = d.getUTCFullYear();
             return `${day}/${month}/${year}`;
         };
 
@@ -839,6 +841,13 @@
                     // Use Supabase as single source of truth
                     setTasks(sortedTasks);
                     
+                    // SURGICAL FIX #3: If tasks have manualOrder, enable manual order mode
+                    const hasManualOrder = sortedTasks.some(t => t.manualOrder !== null && t.manualOrder !== undefined);
+                    if (hasManualOrder) {
+                        setIsManualOrder(true);
+                        console.log('✅ Manual order detected, enabled manual order mode');
+                    }
+                    
                     // Mark that we've synced successfully
                     localStorage.setItem('ln_has_synced_to_supabase', 'true');
                     setHasSyncedOnce(true);
@@ -1018,6 +1027,12 @@
                                     const newTasks = [...prev];
                                     // Merge instead of replace (preserve local fields if newer)
                                     newTasks[index] = { ...newTasks[index], ...updatedTask };
+                                    
+                                    // SURGICAL FIX #3c: Enable manual order if task has it
+                                    if (updatedTask.manualOrder !== null && updatedTask.manualOrder !== undefined) {
+                                        setIsManualOrder(true);
+                                    }
+                                    
                                     return newTasks;
                                 });
                             }
@@ -1446,7 +1461,25 @@
             const [showQuickEdit, setShowQuickEdit] = useState(false);
             
             // V1.3: Manual task reordering
-            const [isManualOrder, setIsManualOrder] = useState(false);
+            // FIX #7: Persist manual order mode to localStorage
+            const [isManualOrder, setIsManualOrder] = useState(() => {
+                try {
+                    const saved = localStorage.getItem('isManualOrder');
+                    return saved === 'true';
+                } catch {
+                    return false;
+                }
+            });
+            
+            // Save isManualOrder to localStorage whenever it changes
+            useEffect(() => {
+                try {
+                    localStorage.setItem('isManualOrder', isManualOrder.toString());
+                } catch (error) {
+                    console.error('Failed to save isManualOrder:', error);
+                }
+            }, [isManualOrder]);
+            const [isSyncingFromRealtime, setIsSyncingFromRealtime] = useState(false);
             
             // V1.3: Events system
             const [events, setEvents] = useStickyState([], 'ln_events');
@@ -1562,7 +1595,10 @@
                 });
 
                 // FIX Issues 1-3: Sort tasks with proper manual order handling
-                if (isManualOrder) {
+                // Auto-detect manual order mode based on task data
+                const hasManualOrderTasks = filtered.some(t => t.manualOrder !== null && t.manualOrder !== undefined);
+                
+                if (hasManualOrderTasks || isManualOrder) {
                     // Manual order mode: use manualOrder if set, fallback to createdAt
                     filtered.sort((a, b) => {
                         const hasOrderA = a.manualOrder !== undefined && a.manualOrder !== null;
@@ -2396,15 +2432,25 @@
                             setTasks(updatedTasks);
                             setIsManualOrder(true);
                             
-                            // SURGICAL FIX #3: Save manualOrder to Supabase
+                            // SURGICAL FIX #2: Save manualOrder to Supabase (debounced)
                             if (user) {
-                                // Only save tasks whose manualOrder changed
-                                visibleTasks.forEach((task, index) => {
-                                    const updatedTask = updatedTasks.find(t => t.id === task.id);
-                                    if (updatedTask && updatedTask.manualOrder !== task.manualOrder) {
-                                        saveTaskToSupabase(updatedTask);
-                                    }
+                                // Get original manualOrder values before reorder
+                                const originalOrders = new Map(tasks.map(t => [t.id, t.manualOrder]));
+                                
+                                // Only save tasks whose manualOrder actually changed
+                                const tasksToSave = updatedTasks.filter(task => {
+                                    const originalOrder = originalOrders.get(task.id);
+                                    return task.manualOrder !== originalOrder;
                                 });
+                                
+                                console.log(`💾 Saving ${tasksToSave.length} tasks with new order to Supabase`);
+                                
+                                // Save all tasks in parallel for faster sync
+                                if (tasksToSave.length > 0) {
+                                    Promise.all(tasksToSave.map(task => saveTaskToSupabase(task)))
+                                        .then(() => console.log('✅ Manual order saved to Supabase'))
+                                        .catch(err => console.error('❌ Error saving manual order:', err));
+                                }
                             }
                             
                             showToast('Task reordered', true);
@@ -2736,8 +2782,8 @@
 
                                     {/* Timestamps */}
                                     <div className="text-xs text-gray-400 mt-1">
-                                        {task.createdAt && `Created: ${new Date(task.createdAt).toLocaleDateString()}`}
-                                        {task.completedAt && ` • Completed: ${new Date(task.completedAt).toLocaleDateString()}`}
+                                        {task.createdAt && `Created: ${formatDateDisplay(task.createdAt)}`}
+                                        {task.completedAt && ` • Completed: ${formatDateDisplay(task.completedAt)}`}
                                     </div>
                                 </div>
 
@@ -5180,7 +5226,12 @@
                                             if (idx % Math.ceil(dateRange.length / 10) === 0 || date === today) {
                                                 return (
                                                     <div key={date} className={`${date === today ? 'font-bold text-blue-600' : ''}`}>
-                                                        {date === today ? '📍 TODAY' : new Date(date).toLocaleDateString('en-US', {month: 'short', day: 'numeric'})}
+                                                        {date === today ? '📍 TODAY' : (() => {
+                                                            const d = new Date(date);
+                                                            const day = d.getDate();
+                                                            const month = d.toLocaleDateString('en-US', {month: 'short'});
+                                                            return `${day} ${month}`;
+                                                        })()}
                                                     </div>
                                                 );
                                             }
