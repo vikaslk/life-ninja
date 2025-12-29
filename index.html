@@ -671,12 +671,16 @@
             };
             
             // Save a single task to Supabase
-            const saveTaskToSupabase = async (task) => {
+            const saveTaskToSupabase = async (task, options = {}) => {
                 if (!user) return;
                 if (isLoadingFromSupabase) return; // Don't save while loading!
                 
                 try {
                     setSyncStatus('syncing');
+                    
+                    // V2.5.11-FIX: Optionally exclude manualOrder from saves
+                    // This prevents property edits from overwriting order
+                    const { excludeManualOrder = false } = options;
                     
                     // Prepare task for Supabase (remove id if it's a new task)
                     const taskData = {
@@ -695,9 +699,13 @@
                         notes: task.notes || null,
                         archived: task.archived || false,
                         is_old_task: task.isOldTask || false,
-                        manual_order: task.manualOrder || null,
                         subtasks: task.subtasks || []
                     };
+                    
+                    // Only include manual_order if not excluded
+                    if (!excludeManualOrder) {
+                        taskData.manual_order = task.manualOrder || null;
+                    }
                     
                     // Check if task already exists in Supabase (by checking if we have a supabaseId)
                     if (task.supabaseId) {
@@ -1011,7 +1019,7 @@
                                     text: payload.new.text,
                                     scheduledDate: payload.new.scheduled_date,
                                     dueDate: payload.new.due_date,
-                                    timeSlot: denormalizeTimeSlot(payload.new.time_slot), // FIX #5
+                                    timeSlot: denormalizeTimeSlot(payload.new.time_slot),
                                     estimatedDuration: payload.new.estimated_duration,
                                     status: payload.new.status,
                                     priority: payload.new.priority,
@@ -1022,14 +1030,9 @@
                                     notes: payload.new.notes,
                                     archived: payload.new.archived,
                                     isOldTask: payload.new.is_old_task,
+                                    manualOrder: payload.new.manual_order,  // V2.5.11: Always include!
                                     subtasks: payload.new.subtasks || []
                                 };
-                                
-                                // V2.5.9-FIX: Only include manualOrder if it actually changed
-                                // This prevents stale manualOrder from Supabase overwriting local order
-                                if (isManualOrderUpdate) {
-                                    updatedTask.manualOrder = payload.new.manual_order;
-                                }
                                 
                                 // SURGICAL FIX #2: Merge updates instead of replacing
                                 // This preserves any local changes that haven't synced yet
@@ -1038,10 +1041,10 @@
                                     if (index === -1) return prev;
                                     console.log('🔄 Updating task from real-time:', updatedTask.text);
                                     const newTasks = [...prev];
-                                    // Merge instead of replace (preserve local fields if newer)
+                                    // Merge instead of replace
                                     newTasks[index] = { ...newTasks[index], ...updatedTask };
                                     
-                                    // SURGICAL FIX #3c: Enable manual order if task has it
+                                    // Enable manual order if task has it
                                     if (updatedTask.manualOrder !== null && updatedTask.manualOrder !== undefined) {
                                         setIsManualOrder(true);
                                     }
@@ -1717,10 +1720,11 @@
                         task.id === taskId ? { ...task, ...updates } : task
                     );
                     
-                    // V2.5.0-SYNC: Save updated task to Supabase
+                    // V2.5.11-FIX: Save to Supabase WITHOUT manualOrder
+                    // This prevents property edits from overwriting drag order
                     const updatedTask = updated.find(t => t.id === taskId);
                     if (updatedTask && user) {
-                        saveTaskToSupabase(updatedTask);
+                        saveTaskToSupabase(updatedTask, { excludeManualOrder: true });
                     }
                     
                     return updated;
