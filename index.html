@@ -1022,9 +1022,14 @@
                                     notes: payload.new.notes,
                                     archived: payload.new.archived,
                                     isOldTask: payload.new.is_old_task,
-                                    manualOrder: payload.new.manual_order,
                                     subtasks: payload.new.subtasks || []
                                 };
+                                
+                                // V2.5.9-FIX: Only include manualOrder if it actually changed
+                                // This prevents stale manualOrder from Supabase overwriting local order
+                                if (isManualOrderUpdate) {
+                                    updatedTask.manualOrder = payload.new.manual_order;
+                                }
                                 
                                 // SURGICAL FIX #2: Merge updates instead of replacing
                                 // This preserves any local changes that haven't synced yet
