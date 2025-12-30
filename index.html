@@ -169,6 +169,11 @@
         
         const supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
         
+        // V2.5.12-MANUAL-SYNC: Helper to detect device type
+        const getDeviceId = () => {
+            return /Android|iPhone|iPad|iPod/i.test(navigator.userAgent) ? 'Mobile' : 'Desktop';
+        };
+        
         console.log('✅ Supabase ready');
 
         // ============================================================================
@@ -702,9 +707,11 @@
                         subtasks: task.subtasks || []
                     };
                     
-                    // Only include manual_order if not excluded
+                    // V2.5.12-MANUAL-SYNC: Track device when saving manual_order
                     if (!excludeManualOrder) {
                         taskData.manual_order = task.manualOrder || null;
+                        taskData.last_ordered_device = getDeviceId();
+                        taskData.last_ordered_at = new Date().toISOString();
                     }
                     
                     // Check if task already exists in Supabase (by checking if we have a supabaseId)
@@ -1030,8 +1037,9 @@
                                     notes: payload.new.notes,
                                     archived: payload.new.archived,
                                     isOldTask: payload.new.is_old_task,
-                                    manualOrder: payload.new.manual_order,  // V2.5.11: Always include!
                                     subtasks: payload.new.subtasks || []
+                                    // V2.5.12-MANUAL-SYNC: manualOrder NOT included
+                                    // Order is device-local, synced manually via button
                                 };
                                 
                                 // SURGICAL FIX #2: Merge updates instead of replacing
@@ -1041,13 +1049,8 @@
                                     if (index === -1) return prev;
                                     console.log('🔄 Updating task from real-time:', updatedTask.text);
                                     const newTasks = [...prev];
-                                    // Merge instead of replace
+                                    // Merge instead of replace (preserves local manualOrder!)
                                     newTasks[index] = { ...newTasks[index], ...updatedTask };
-                                    
-                                    // Enable manual order if task has it
-                                    if (updatedTask.manualOrder !== null && updatedTask.manualOrder !== undefined) {
-                                        setIsManualOrder(true);
-                                    }
                                     
                                     return newTasks;
                                 });
@@ -1784,6 +1787,70 @@
             const restoreTask = (taskId) => {
                 updateTask(taskId, { archived: false });
                 showToast('Task restored');
+            };
+            
+            // V2.5.12-MANUAL-SYNC: Sync task order from other device
+            const syncOrderFromOtherDevice = async () => {
+                if (!user) {
+                    showToast('❌ Please log in first', true);
+                    return;
+                }
+                
+                try {
+                    setSyncStatus('syncing');
+                    setIsLoadingFromSupabase(true);
+                    
+                    // Get all tasks from Supabase with their manual_order
+                    const { data, error } = await supabase
+                        .from('tasks')
+                        .select('id, manual_order, last_ordered_device, last_ordered_at')
+                        .eq('user_id', user.id)
+                        .not('manual_order', 'is', null)
+                        .order('id');
+                    
+                    if (error) throw error;
+                    
+                    if (!data || data.length === 0) {
+                        showToast('ℹ️ No order to sync', false);
+                        setSyncStatus('synced');
+                        setIsLoadingFromSupabase(false);
+                        return;
+                    }
+                    
+                    // Update local tasks with Supabase manual_order
+                    setTasks(prev => prev.map(task => {
+                        const supabaseTask = data.find(t => t.id === task.supabaseId);
+                        if (supabaseTask && supabaseTask.manual_order !== null) {
+                            return { ...task, manualOrder: supabaseTask.manual_order };
+                        }
+                        return task;
+                    }));
+                    
+                    setIsManualOrder(true);
+                    
+                    // Get device name that we synced from
+                    const latestOrder = data.reduce((latest, current) => {
+                        if (!latest || new Date(current.last_ordered_at) > new Date(latest.last_ordered_at)) {
+                            return current;
+                        }
+                        return latest;
+                    }, null);
+                    
+                    const sourceDevice = latestOrder?.last_ordered_device || 'other device';
+                    const currentDevice = getDeviceId();
+                    const displaySource = sourceDevice === currentDevice ? 'this device' : sourceDevice;
+                    
+                    showToast(`✅ Order synced from ${displaySource}!`);
+                    setSyncStatus('synced');
+                    setLastSyncTime(new Date());
+                    
+                } catch (error) {
+                    console.error('Error syncing order:', error);
+                    showToast('❌ Failed to sync order', true);
+                    setSyncStatus('error');
+                } finally {
+                    setIsLoadingFromSupabase(false);
+                }
             };
 
             const toggleTaskStatus = (taskId) => {
@@ -3585,6 +3652,30 @@
                                     <Archive size={14} className="inline mr-1" />
                                     {showArchived ? 'Viewing Archived' : 'View Archived'}
                                 </button>
+                                {/* V2.5.12-MANUAL-SYNC: Sync order button */}
+                                {isManualOrder && (
+                                    <button
+                                        onClick={syncOrderFromOtherDevice}
+                                        disabled={isLoadingFromSupabase}
+                                        className="px-3 py-1 rounded text-sm bg-blue-500 text-white hover:bg-blue-600 disabled:bg-gray-300 disabled:cursor-not-allowed flex items-center gap-1.5 transition-colors"
+                                        title={`Sync task order from ${getDeviceId() === 'Desktop' ? 'Mobile' : 'Desktop'}`}
+                                    >
+                                        <svg 
+                                            className="w-3.5 h-3.5" 
+                                            fill="none" 
+                                            stroke="currentColor" 
+                                            viewBox="0 0 24 24"
+                                        >
+                                            <path 
+                                                strokeLinecap="round" 
+                                                strokeLinejoin="round" 
+                                                strokeWidth={2} 
+                                                d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" 
+                                            />
+                                        </svg>
+                                        <span className="text-xs font-medium">Sync Order</span>
+                                    </button>
+                                )}
                                 <span className="text-sm text-gray-600">
                                     {filteredTasks.length} task{filteredTasks.length !== 1 ? 's' : ''}
                                 </span>
