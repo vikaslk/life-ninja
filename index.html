@@ -2460,27 +2460,13 @@
                 document.addEventListener('mouseup', handleMouseDragEnd);
             };
             
-            // V2.5.14-FIX: Improved touch drag for mobile
+            // V2.5.13-FIX: Touch-based drag for mobile
             const handleTouchDragStart = (e, task) => {
-                // Prevent default but allow the touch to be captured
+                // Prevent scrolling while dragging
                 e.preventDefault();
-                e.stopPropagation();
                 
                 const touch = e.touches[0];
-                console.log('📱 Touch drag start:', task.text);
-                
-                // Store initial touch position for minimum drag distance
-                const initialTouch = { x: touch.clientX, y: touch.clientY };
-                
-                // Haptic feedback
-                if (navigator.vibrate) {
-                    navigator.vibrate(50);
-                }
-                
-                // Visual feedback - add dragging class
-                const target = e.currentTarget;
-                target.style.opacity = '0.5';
-                target.style.transform = 'scale(1.05)';
+                console.log('📱 Touch drag:', task.text);
                 
                 // Use refs for immediate tracking
                 isDraggingRef.current = true;
@@ -2492,19 +2478,8 @@
                 setDragStartPos({ x: touch.clientX, y: touch.clientY });
                 
                 // Add global touch listeners
-                const handleMove = (e) => handleTouchDragMove(e, initialTouch, target);
-                const handleEnd = (e) => handleTouchDragEnd(e, target);
-                
-                document.addEventListener('touchmove', handleMove, { passive: false });
-                document.addEventListener('touchend', handleEnd, { once: true });
-                document.addEventListener('touchcancel', handleEnd, { once: true });
-                
-                // Store cleanup functions
-                target._touchCleanup = () => {
-                    document.removeEventListener('touchmove', handleMove);
-                    document.removeEventListener('touchend', handleEnd);
-                    document.removeEventListener('touchcancel', handleEnd);
-                };
+                document.addEventListener('touchmove', handleTouchDragMove, { passive: false });
+                document.addEventListener('touchend', handleTouchDragEnd);
             };
             
             const handleMouseDragMove = (e) => {
@@ -2539,11 +2514,10 @@
                 }
             };
             
-            // V2.5.14-FIX: Touch move handler with minimum drag threshold
-            const handleTouchDragMove = (e, initialTouch, target) => {
+            // V2.5.13-FIX: Touch move handler
+            const handleTouchDragMove = (e) => {
                 // Prevent scrolling
                 e.preventDefault();
-                e.stopPropagation();
                 
                 // Use ref for immediate check (state updates are async!)
                 if (!isDraggingRef.current) {
@@ -2551,16 +2525,6 @@
                 }
                 
                 const touch = e.touches[0];
-                
-                // Check if moved enough to be considered a drag (10px threshold)
-                const dx = touch.clientX - initialTouch.x;
-                const dy = touch.clientY - initialTouch.y;
-                const distance = Math.sqrt(dx * dx + dy * dy);
-                
-                if (distance < 10) {
-                    // Not enough movement yet, still might be a tap
-                    return;
-                }
                 
                 // Update drag position for ghost preview
                 setDragStartPos({ x: touch.clientX, y: touch.clientY });
@@ -2748,26 +2712,12 @@
             };
             
             // V2.5.13-FIX: Touch end handler (mirrors mouse end)
-            // V2.5.14-FIX: Touch end handler with visual cleanup
-            const handleTouchDragEnd = (e, target) => {
+            const handleTouchDragEnd = (e) => {
                 console.log('🏁 Touch drop');
                 
-                // Restore visual state
-                if (target) {
-                    target.style.opacity = '';
-                    target.style.transform = '';
-                    
-                    // Cleanup event listeners if they exist
-                    if (target._touchCleanup) {
-                        target._touchCleanup();
-                        delete target._touchCleanup;
-                    }
-                }
-                
-                // Haptic feedback on drop
-                if (navigator.vibrate && currentDropZoneRef.current) {
-                    navigator.vibrate(30);
-                }
+                // Remove global listeners
+                document.removeEventListener('touchmove', handleTouchDragMove);
+                document.removeEventListener('touchend', handleTouchDragEnd);
                 
                 // Use refs for immediate access
                 if (currentDropZoneRef.current && draggedTaskRef.current) {
@@ -3068,81 +3018,6 @@
                 if (priority === 'high') return 'bg-orange-100 text-orange-700';
                 if (priority === 'medium') return 'bg-yellow-100 text-yellow-700';
                 return 'bg-gray-100 text-gray-700';
-            };
-            
-            // V2.5.14-FIX: AM/PM Time Picker Component
-            const AMPMTimePicker = ({ value, onChange, onBlur, className }) => {
-                // Convert 24-hour to 12-hour format
-                const to12Hour = (time24) => {
-                    if (!time24) return { hour: '12', minute: '00', period: 'AM' };
-                    const [h, m] = time24.split(':');
-                    const hour24 = parseInt(h);
-                    const period = hour24 >= 12 ? 'PM' : 'AM';
-                    const hour12 = hour24 === 0 ? 12 : (hour24 > 12 ? hour24 - 12 : hour24);
-                    return { hour: hour12.toString(), minute: m, period };
-                };
-                
-                // Convert 12-hour to 24-hour format
-                const to24Hour = (hour, minute, period) => {
-                    let h = parseInt(hour);
-                    if (period === 'AM' && h === 12) h = 0;
-                    if (period === 'PM' && h !== 12) h += 12;
-                    return `${h.toString().padStart(2, '0')}:${minute}`;
-                };
-                
-                const { hour, minute, period } = to12Hour(value);
-                const [localHour, setLocalHour] = React.useState(hour);
-                const [localMinute, setLocalMinute] = React.useState(minute);
-                const [localPeriod, setLocalPeriod] = React.useState(period);
-                
-                const handleChange = (newHour, newMinute, newPeriod) => {
-                    const time24 = to24Hour(newHour, newMinute, newPeriod);
-                    onChange({ target: { value: time24 } });
-                };
-                
-                return (
-                    <div className={`flex gap-1 ${className}`}>
-                        <select
-                            value={localHour}
-                            onChange={(e) => {
-                                setLocalHour(e.target.value);
-                                handleChange(e.target.value, localMinute, localPeriod);
-                            }}
-                            onBlur={onBlur}
-                            className="px-2 py-1 border rounded text-xs flex-1"
-                        >
-                            {[...Array(12)].map((_, i) => {
-                                const h = (i + 1).toString();
-                                return <option key={h} value={h}>{h}</option>;
-                            })}
-                        </select>
-                        <select
-                            value={localMinute}
-                            onChange={(e) => {
-                                setLocalMinute(e.target.value);
-                                handleChange(localHour, e.target.value, localPeriod);
-                            }}
-                            onBlur={onBlur}
-                            className="px-2 py-1 border rounded text-xs flex-1"
-                        >
-                            {['00', '15', '30', '45'].map(m => (
-                                <option key={m} value={m}>{m}</option>
-                            ))}
-                        </select>
-                        <select
-                            value={localPeriod}
-                            onChange={(e) => {
-                                setLocalPeriod(e.target.value);
-                                handleChange(localHour, localMinute, e.target.value);
-                            }}
-                            onBlur={onBlur}
-                            className="px-2 py-1 border rounded text-xs"
-                        >
-                            <option value="AM">AM</option>
-                            <option value="PM">PM</option>
-                        </select>
-                    </div>
-                );
             };
 
             // ====== TASK CARD COMPONENT ======
@@ -3447,11 +3322,12 @@
                                     <div className="grid grid-cols-2 gap-2">
                                         <div>
                                             <label className="text-xs font-semibold">Time Slot</label>
-                                            <AMPMTimePicker
+                                            <input
+                                                type="time"
                                                 value={localTimeSlot}
                                                 onChange={(e) => setLocalTimeSlot(e.target.value)}
                                                 onBlur={(e) => handleTaskUpdate({ timeSlot: e.target.value || null })}
-                                                className="w-full"
+                                                className="w-full px-2 py-1 border rounded text-xs"
                                             />
                                         </div>
                                         
