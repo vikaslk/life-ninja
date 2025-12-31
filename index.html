@@ -1742,6 +1742,74 @@
                     return updated;
                 });
             };
+            
+            // V2.6.0-BUTTONS: Move task up in manual order
+            const moveTaskUp = (taskId) => {
+                const visibleTasks = [...filteredTasks];
+                const currentIndex = visibleTasks.findIndex(t => t.id === taskId);
+                
+                if (currentIndex <= 0) return; // Already at top
+                
+                console.log('⬆️ Moving task up:', visibleTasks[currentIndex].text);
+                
+                // Swap with task above
+                [visibleTasks[currentIndex - 1], visibleTasks[currentIndex]] = 
+                [visibleTasks[currentIndex], visibleTasks[currentIndex - 1]];
+                
+                // Reassign manual order
+                const updatedTasks = tasks.map(task => {
+                    const visibleIndex = visibleTasks.findIndex(t => t.id === task.id);
+                    if (visibleIndex !== -1) {
+                        return { ...task, manualOrder: visibleIndex };
+                    }
+                    return task;
+                });
+                
+                setTasks(updatedTasks);
+                setIsManualOrder(true);
+                
+                // Save to Supabase
+                const tasksToSave = updatedTasks.filter(t => t.manualOrder !== null && t.supabaseId);
+                if (tasksToSave.length > 0 && user) {
+                    Promise.all(tasksToSave.map(task => saveTaskToSupabase(task)));
+                }
+                
+                showToast('Task moved up', false);
+            };
+            
+            // V2.6.0-BUTTONS: Move task down in manual order
+            const moveTaskDown = (taskId) => {
+                const visibleTasks = [...filteredTasks];
+                const currentIndex = visibleTasks.findIndex(t => t.id === taskId);
+                
+                if (currentIndex < 0 || currentIndex >= visibleTasks.length - 1) return; // Already at bottom
+                
+                console.log('⬇️ Moving task down:', visibleTasks[currentIndex].text);
+                
+                // Swap with task below
+                [visibleTasks[currentIndex], visibleTasks[currentIndex + 1]] = 
+                [visibleTasks[currentIndex + 1], visibleTasks[currentIndex]];
+                
+                // Reassign manual order
+                const updatedTasks = tasks.map(task => {
+                    const visibleIndex = visibleTasks.findIndex(t => t.id === task.id);
+                    if (visibleIndex !== -1) {
+                        return { ...task, manualOrder: visibleIndex };
+                    }
+                    return task;
+                });
+                
+                setTasks(updatedTasks);
+                setIsManualOrder(true);
+                
+                // Save to Supabase
+                const tasksToSave = updatedTasks.filter(t => t.manualOrder !== null && t.supabaseId);
+                if (tasksToSave.length > 0 && user) {
+                    Promise.all(tasksToSave.map(task => saveTaskToSupabase(task)));
+                }
+                
+                showToast('Task moved down', false);
+            };
 
             const updateListTask = (listId, taskId, updates) => {
                 setCustomLists(prev => prev.map(list =>
@@ -3021,7 +3089,8 @@
             };
 
             // ====== TASK CARD COMPONENT ======
-            const TaskCard = ({ task, location = 'list', showDate = false }) => {
+            // V2.6.0-OPTIMIZE: Memoized to prevent unnecessary re-renders
+            const TaskCard = React.memo(({ task, location = 'list', showDate = false }) => {
                 const [newSubtaskText, setNewSubtaskText] = useState('');
                 // Bug 2 Complete Fix: Local state for all text inputs to prevent scroll/focus loss
                 const [localText, setLocalText] = useState(task.text || '');
@@ -3080,6 +3149,41 @@
                                             }}
                                         >
                                             <GripVertical size={16} />
+                                        </div>
+                                        {/* V2.6.0-BUTTONS: Up/Down reorder buttons */}
+                                        <div className="flex flex-col gap-0.5">
+                                            <button
+                                                onClick={(e) => {
+                                                    e.stopPropagation();
+                                                    moveTaskUp(task.id);
+                                                }}
+                                                onTouchEnd={(e) => {
+                                                    e.preventDefault();
+                                                    e.stopPropagation();
+                                                    moveTaskUp(task.id);
+                                                }}
+                                                className="text-gray-400 hover:text-blue-600 transition-colors p-0.5 rounded hover:bg-blue-50"
+                                                title="Move task up"
+                                                draggable="false"
+                                            >
+                                                <ChevronUp size={14} />
+                                            </button>
+                                            <button
+                                                onClick={(e) => {
+                                                    e.stopPropagation();
+                                                    moveTaskDown(task.id);
+                                                }}
+                                                onTouchEnd={(e) => {
+                                                    e.preventDefault();
+                                                    e.stopPropagation();
+                                                    moveTaskDown(task.id);
+                                                }}
+                                                className="text-gray-400 hover:text-blue-600 transition-colors p-0.5 rounded hover:bg-blue-50"
+                                                title="Move task down"
+                                                draggable="false"
+                                            >
+                                                <ChevronDown size={14} />
+                                            </button>
                                         </div>
                                         <button
                                             onClick={(e) => {
@@ -3633,7 +3737,32 @@
                         )}
                     </div>
                 );
-            };
+            }, (prevProps, nextProps) => {
+                // V2.6.0-OPTIMIZE: Only re-render if task data actually changed
+                // This prevents "screen shaking" from rapid real-time updates
+                const prev = prevProps.task;
+                const next = nextProps.task;
+                
+                return (
+                    prev.id === next.id &&
+                    prev.text === next.text &&
+                    prev.status === next.status &&
+                    prev.dueDate === next.dueDate &&
+                    prev.scheduledDate === next.scheduledDate &&
+                    prev.timeSlot === next.timeSlot &&
+                    prev.estimatedDuration === next.estimatedDuration &&
+                    prev.priority === next.priority &&
+                    prev.persona === next.persona &&
+                    prev.project === next.project &&
+                    prev.notes === next.notes &&
+                    prev.archived === next.archived &&
+                    prev.manualOrder === next.manualOrder &&
+                    JSON.stringify(prev.tags) === JSON.stringify(next.tags) &&
+                    JSON.stringify(prev.subtasks) === JSON.stringify(next.subtasks) &&
+                    prevProps.location === nextProps.location &&
+                    prevProps.showDate === nextProps.showDate
+                );
+            });
 
             // V1.3: EventCard component
             const EventCard = ({ event, location = 'list' }) => {
@@ -6572,10 +6701,15 @@
                                             </div>
                                             <button
                                                 onClick={handleLogout}
-                                                className="p-2 hover:bg-green-100 rounded transition-colors"
+                                                onTouchEnd={(e) => {
+                                                    e.preventDefault();
+                                                    handleLogout();
+                                                }}
+                                                className="p-3 hover:bg-green-100 rounded transition-colors min-w-[44px] min-h-[44px] flex items-center justify-center"
                                                 title="Log Out"
+                                                aria-label="Log Out"
                                             >
-                                                <LogOut size={18} className="text-gray-600" />
+                                                <LogOut size={20} className="text-gray-600" />
                                             </button>
                                         </div>
                                     )}
