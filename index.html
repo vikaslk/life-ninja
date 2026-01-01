@@ -589,20 +589,27 @@
             const handleLogout = async () => {
                 try {
                     console.log('🚪 Logging out...');
+                    
+                    // V2.6.3-FIX: More aggressive logout
+                    // 1. Sign out from Supabase
                     await supabase.auth.signOut();
                     
-                    // Clear all sync flags
-                    localStorage.removeItem('ln_has_synced_to_supabase');
-                    localStorage.removeItem('ln_has_synced_events_to_supabase');
+                    // 2. Clear ALL localStorage
+                    localStorage.clear();
+                    
+                    // 3. Clear sessionStorage
+                    sessionStorage.clear();
                     
                     console.log('✅ Logged out successfully');
                     
-                    // Force full page reload (more aggressive than window.location.reload())
-                    window.location.href = window.location.href;
+                    // 4. Force full page reload with cache bust
+                    window.location.href = window.location.pathname + '?t=' + Date.now();
                 } catch (error) {
                     console.error('❌ Logout error:', error);
                     // Force reload anyway
-                    window.location.href = window.location.href;
+                    localStorage.clear();
+                    sessionStorage.clear();
+                    window.location.href = window.location.pathname + '?t=' + Date.now();
                 }
             };
             
@@ -3125,7 +3132,9 @@
                 
                 // V2.6.3-QUICKEDIT: Long-press detection for mobile Quick Edit
                 const longPressTimer = useRef(null);
-                const [isLongPressing, setIsLongPressing] = useState(false);
+                const clickTimer = useRef(null);
+                const clickCount = useRef(0);
+                const isLongPressing = useRef(false); // Use ref for immediate updates
                 
                 // Update local state when task changes (e.g., from external update)
                 useEffect(() => {
@@ -3150,34 +3159,87 @@
                     setQuickEditTask({...task});
                 };
                 
+                // V2.6.3-FIX: Single click with delay to allow double-click
+                const handleClick = (e) => {
+                    e.stopPropagation();
+                    // DON'T use preventDefault - it blocks double-click detection!
+                    
+                    clickCount.current += 1;
+                    
+                    // If this is part of a double-click, wait for the second click
+                    if (clickCount.current === 1) {
+                        clickTimer.current = setTimeout(() => {
+                            // Only expand if we're still on single click (not double)
+                            if (clickCount.current === 1) {
+                                console.log('👆 Single click - expanding');
+                                setExpandedTasks(p => ({ ...p, [task.id]: !p[task.id] }));
+                            }
+                            clickCount.current = 0;
+                        }, 250);
+                    }
+                };
+                
                 // V2.6.3-QUICKEDIT: Double-click handler (PC)
                 const handleDoubleClick = (e) => {
                     e.preventDefault(); // Prevent text selection
                     e.stopPropagation();
+                    
+                    // Clear the single-click timer
+                    if (clickTimer.current) {
+                        clearTimeout(clickTimer.current);
+                    }
+                    
+                    // Reset click count
+                    clickCount.current = 0;
+                    
+                    console.log('👆👆 Double click - Quick Edit');
                     openQuickEdit();
                 };
                 
                 // V2.6.3-QUICKEDIT: Long-press handlers (Mobile)
                 const handleTouchStart = (e) => {
+                    console.log('👆 Touch start');
+                    isLongPressing.current = false; // Reset
                     longPressTimer.current = setTimeout(() => {
-                        setIsLongPressing(true);
-                        if (navigator.vibrate) navigator.vibrate(50); // Haptic feedback
+                        console.log('👆⏱️ Long press detected');
+                        isLongPressing.current = true; // Set immediately
+                        if (navigator.vibrate) {
+                            navigator.vibrate(50); // Haptic feedback
+                            console.log('📳 Vibrated');
+                        }
+                        console.log('✨ Opening Quick Edit from long-press');
                         openQuickEdit();
                     }, 500); // 500ms long-press
                 };
                 
-                const handleTouchEnd = () => {
+                const handleTouchEnd = (e) => {
+                    console.log('👆 Touch end, was long pressing:', isLongPressing.current);
+                    
                     if (longPressTimer.current) {
                         clearTimeout(longPressTimer.current);
                     }
-                    setIsLongPressing(false);
+                    
+                    // If was long-pressing, prevent default tap behavior
+                    if (isLongPressing.current) {
+                        e.preventDefault();
+                        e.stopPropagation();
+                        console.log('🚫 Prevented tap after long-press');
+                        isLongPressing.current = false;
+                    } else {
+                        // Short tap - expand/collapse
+                        console.log('👆 Short tap - expanding');
+                        setExpandedTasks(p => ({ ...p, [task.id]: !p[task.id] }));
+                    }
                 };
                 
                 const handleTouchMove = () => {
                     // Cancel long-press if user moves finger
+                    console.log('👆 Touch move - canceling long-press');
                     if (longPressTimer.current) {
                         clearTimeout(longPressTimer.current);
                     }
+                    isLongPressing.current = false;
+                };
                 };
 
                 return (
@@ -3275,7 +3337,7 @@
                                 <div 
                                     className="flex-1" 
                                     style={{ minWidth: '150px', wordWrap: 'break-word', overflowWrap: 'break-word', cursor: 'pointer', userSelect: 'none' }}
-                                    onClick={() => setExpandedTasks(p => ({ ...p, [task.id]: !p[task.id] }))}
+                                    onClick={handleClick}
                                     onDoubleClick={handleDoubleClick}
                                     onTouchStart={handleTouchStart}
                                     onTouchEnd={handleTouchEnd}
@@ -6917,9 +6979,16 @@
                                                 </div>
                                             </div>
                                             <button
-                                                onClick={handleLogout}
-                                                onTouchEnd={(e) => {
+                                                onClick={(e) => {
+                                                    console.log('🚪 Logout button clicked (onClick)');
                                                     e.preventDefault();
+                                                    e.stopPropagation();
+                                                    handleLogout();
+                                                }}
+                                                onTouchEnd={(e) => {
+                                                    console.log('🚪 Logout button touched (onTouchEnd)');
+                                                    e.preventDefault();
+                                                    e.stopPropagation();
                                                     handleLogout();
                                                 }}
                                                 className="p-3 hover:bg-green-100 rounded transition-colors min-w-[44px] min-h-[44px] flex items-center justify-center"
