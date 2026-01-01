@@ -1735,8 +1735,13 @@
                     // V2.5.11-FIX: Save to Supabase WITHOUT manualOrder
                     // This prevents property edits from overwriting drag order
                     const updatedTask = updated.find(t => t.id === taskId);
-                    if (updatedTask && user) {
+                    
+                    // V2.6.1-FIX: Only save if task has supabaseId
+                    // This prevents duplicates when editing newly created tasks
+                    if (updatedTask && user && updatedTask.supabaseId) {
                         saveTaskToSupabase(updatedTask, { excludeManualOrder: true });
+                    } else if (updatedTask && !updatedTask.supabaseId) {
+                        console.log('⏭️ Skipping save: Task not yet saved to Supabase', taskId);
                     }
                     
                     return updated;
@@ -6276,9 +6281,9 @@
                                                             {getStatusLabel(status)} ({statusTasks.length})
                                                         </h4>
                                                         <button
-                                                            onClick={() => {
-                                                                const newTask = {
-                                                                    id: Date.now(),
+                                                            onClick={async () => {
+                                                                // V2.6.1-FIX: Use createTask() to properly save to Supabase
+                                                                const newTask = await createTask({
                                                                     text: 'New task',
                                                                     status: status,
                                                                     priority: 'medium',
@@ -6292,11 +6297,8 @@
                                                                     tags: [],
                                                                     notes: '',
                                                                     subtasks: [],
-                                                                    isOldTask: false,
-                                                                    archived: false,
-                                                                    createdAt: new Date().toISOString(),
-                                                                };
-                                                                setTasks(prev => [...prev, newTask]);
+                                                                });
+                                                                // Edit the task immediately
                                                                 setEditingTask(newTask.id);
                                                             }}
                                                             className="text-indigo-600 hover:text-indigo-800 hover:bg-indigo-50 rounded p-1"
@@ -6505,9 +6507,9 @@
                                                             {getStatusLabel(status)} ({statusTasks.length})
                                                         </h4>
                                                         <button
-                                                            onClick={() => {
-                                                                const newTask = {
-                                                                    id: Date.now(),
+                                                            onClick={async () => {
+                                                                // V2.6.1-FIX: Use createTask() to properly save to Supabase
+                                                                const newTask = await createTask({
                                                                     text: 'New task',
                                                                     status: status,
                                                                     priority: 'medium',
@@ -6521,11 +6523,8 @@
                                                                     tags: [],
                                                                     notes: '',
                                                                     subtasks: [],
-                                                                    isOldTask: false,
-                                                                    archived: false,
-                                                                    createdAt: new Date().toISOString(),
-                                                                };
-                                                                setTasks(prev => [...prev, newTask]);
+                                                                });
+                                                                // Edit the task immediately
                                                                 setEditingTask(newTask.id);
                                                             }}
                                                             className="text-gray-600 hover:text-gray-800 hover:bg-gray-100 rounded p-1"
