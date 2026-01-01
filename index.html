@@ -3152,6 +3152,7 @@
                 
                 // V2.6.3-QUICKEDIT: Double-click handler (PC)
                 const handleDoubleClick = (e) => {
+                    e.preventDefault(); // Prevent text selection
                     e.stopPropagation();
                     openQuickEdit();
                 };
@@ -3273,12 +3274,13 @@
                                 </div>
                                 <div 
                                     className="flex-1" 
-                                    style={{ minWidth: '150px', wordWrap: 'break-word', overflowWrap: 'break-word' }}
+                                    style={{ minWidth: '150px', wordWrap: 'break-word', overflowWrap: 'break-word', cursor: 'pointer', userSelect: 'none' }}
+                                    onClick={() => setExpandedTasks(p => ({ ...p, [task.id]: !p[task.id] }))}
                                     onDoubleClick={handleDoubleClick}
                                     onTouchStart={handleTouchStart}
                                     onTouchEnd={handleTouchEnd}
                                     onTouchMove={handleTouchMove}
-                                    title="Double-click (PC) or long-press (mobile) for Quick Edit"
+                                    title="Click to expand, double-click for Quick Edit"
                                 >
                                     <p className="text-sm font-medium break-words" style={{ wordBreak: 'break-word' }}>{task.text}</p>
                                     
