@@ -3123,6 +3123,10 @@
                 const isEditing = editingTask === task.id;
                 const points = calculateTaskScore(task);
                 
+                // V2.6.3-QUICKEDIT: Long-press detection for mobile Quick Edit
+                const longPressTimer = useRef(null);
+                const [isLongPressing, setIsLongPressing] = useState(false);
+                
                 // Update local state when task changes (e.g., from external update)
                 useEffect(() => {
                     setLocalText(task.text || '');
@@ -3137,6 +3141,41 @@
                         updateListTask(task.listId, task.id, updates);
                     } else {
                         updateTask(task.id, updates);
+                    }
+                };
+                
+                // V2.6.3-QUICKEDIT: Open Quick Edit modal
+                const openQuickEdit = () => {
+                    console.log('✨ Opening Quick Edit for:', task.text);
+                    setQuickEditTask({...task});
+                };
+                
+                // V2.6.3-QUICKEDIT: Double-click handler (PC)
+                const handleDoubleClick = (e) => {
+                    e.stopPropagation();
+                    openQuickEdit();
+                };
+                
+                // V2.6.3-QUICKEDIT: Long-press handlers (Mobile)
+                const handleTouchStart = (e) => {
+                    longPressTimer.current = setTimeout(() => {
+                        setIsLongPressing(true);
+                        if (navigator.vibrate) navigator.vibrate(50); // Haptic feedback
+                        openQuickEdit();
+                    }, 500); // 500ms long-press
+                };
+                
+                const handleTouchEnd = () => {
+                    if (longPressTimer.current) {
+                        clearTimeout(longPressTimer.current);
+                    }
+                    setIsLongPressing(false);
+                };
+                
+                const handleTouchMove = () => {
+                    // Cancel long-press if user moves finger
+                    if (longPressTimer.current) {
+                        clearTimeout(longPressTimer.current);
                     }
                 };
 
@@ -3232,7 +3271,15 @@
                                 >
                                     {getIcon(task.status)}
                                 </div>
-                                <div className="flex-1" style={{ minWidth: '150px', wordWrap: 'break-word', overflowWrap: 'break-word' }}>
+                                <div 
+                                    className="flex-1" 
+                                    style={{ minWidth: '150px', wordWrap: 'break-word', overflowWrap: 'break-word' }}
+                                    onDoubleClick={handleDoubleClick}
+                                    onTouchStart={handleTouchStart}
+                                    onTouchEnd={handleTouchEnd}
+                                    onTouchMove={handleTouchMove}
+                                    title="Double-click (PC) or long-press (mobile) for Quick Edit"
+                                >
                                     <p className="text-sm font-medium break-words" style={{ wordBreak: 'break-word' }}>{task.text}</p>
                                     
                                     {/* Tags and metadata */}
@@ -3393,6 +3440,30 @@
                                         </div>
                                     </div>
 
+                                    {/* V2.6.3-QUICKEDIT: Status dropdown */}
+                                    <div>
+                                        <label className="text-xs font-semibold">Status</label>
+                                        <select
+                                            value={task.status}
+                                            onChange={(e) => handleTaskUpdate({ status: e.target.value })}
+                                            className="w-full px-2 py-1 border rounded text-xs"
+                                        >
+                                            {(() => {
+                                                // Get statuses for current project
+                                                const currentProject = task.project 
+                                                    ? projects.find(p => p.name === task.project)
+                                                    : projects.find(p => p.isNoProject);
+                                                const availableStatuses = currentProject?.statuses || ['not-started', 'in-progress', 'completed'];
+                                                
+                                                return availableStatuses.map(status => (
+                                                    <option key={status} value={status}>
+                                                        {getStatusLabel(status)}
+                                                    </option>
+                                                ));
+                                            })()}
+                                        </select>
+                                    </div>
+
                                     <div className="grid grid-cols-2 gap-2">
                                         <div>
                                             <label className="text-xs font-semibold">Persona</label>
@@ -3411,7 +3482,25 @@
                                             <label className="text-xs font-semibold">Project</label>
                                             <select
                                                 value={task.project || ''}
-                                                onChange={(e) => handleTaskUpdate({ project: e.target.value || null })}
+                                                onChange={(e) => {
+                                                    const newProject = e.target.value || null;
+                                                    
+                                                    // V2.6.3-FIX: Get new project's statuses
+                                                    const projectStatuses = newProject 
+                                                        ? (projects.find(p => p.name === newProject)?.statuses || ['not-started', 'in-progress', 'completed'])
+                                                        : (projects.find(p => p.isNoProject)?.statuses || ['not-started', 'in-progress', 'completed']);
+                                                    
+                                                    // V2.6.3-FIX: If current status not valid for new project, reset to first status
+                                                    const newStatus = projectStatuses.includes(task.status) 
+                                                        ? task.status 
+                                                        : projectStatuses[0];
+                                                    
+                                                    // Update both project and status (if needed)
+                                                    handleTaskUpdate({ 
+                                                        project: newProject,
+                                                        status: newStatus
+                                                    });
+                                                }}
                                                 className="w-full px-2 py-1 border rounded text-xs"
                                             >
                                                 <option value="">No Project</option>
