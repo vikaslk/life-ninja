@@ -3455,9 +3455,23 @@
                                                     : projects.find(p => p.isNoProject);
                                                 const availableStatuses = currentProject?.statuses || ['not-started', 'in-progress', 'completed'];
                                                 
+                                                // V2.6.3-FIX: Inline status label formatter
+                                                const formatStatus = (status) => {
+                                                    const labels = {
+                                                        'not-started': 'Not Started',
+                                                        'in-progress': 'In Progress',
+                                                        'completed': 'Completed',
+                                                        'to-do': 'To Do',
+                                                        'awaiting-discussion': 'Awaiting Discussion / Inputs',
+                                                        'delayed-parked': 'Delayed or Parked',
+                                                        'done': 'Done'
+                                                    };
+                                                    return labels[status] || status.split('-').map(w => w.charAt(0).toUpperCase() + w.slice(1)).join(' ');
+                                                };
+                                                
                                                 return availableStatuses.map(status => (
                                                     <option key={status} value={status}>
-                                                        {getStatusLabel(status)}
+                                                        {formatStatus(status)}
                                                     </option>
                                                 ));
                                             })()}
