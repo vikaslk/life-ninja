@@ -1051,6 +1051,20 @@
                                     // Order is device-local, synced manually via button
                                 };
                                 
+                                // V2.6.3-TYPING-FIX: Skip update if user is actively editing ANY field
+                                // Check 1: Is user editing this specific task?
+                                if (editingTask === updatedTask.id) {
+                                    console.log('⏭️ Skipping real-time update - task is being edited:', updatedTask.text);
+                                    return;
+                                }
+                                
+                                // Check 2: Is user typing in ANY input field?
+                                const activeElement = document.activeElement;
+                                if (activeElement && (activeElement.tagName === 'INPUT' || activeElement.tagName === 'TEXTAREA')) {
+                                    console.log('⏭️ Skipping real-time update - user is typing in input field');
+                                    return;
+                                }
+                                
                                 // SURGICAL FIX #2: Merge updates instead of replacing
                                 // This preserves any local changes that haven't synced yet
                                 setTasks(prev => {
