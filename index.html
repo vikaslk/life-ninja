@@ -1789,10 +1789,38 @@
                 setTasks(updatedTasks);
                 setIsManualOrder(true);
                 
-                // Save to Supabase
+                // V2.6.3-FIX: Batch save with single Supabase call to reduce real-time events
                 const tasksToSave = updatedTasks.filter(t => t.manualOrder !== null && t.supabaseId);
                 if (tasksToSave.length > 0 && user) {
-                    Promise.all(tasksToSave.map(task => saveTaskToSupabase(task)));
+                    // Use a single batch update instead of individual saves
+                    const batchUpdate = async () => {
+                        try {
+                            const updates = tasksToSave.map(task => ({
+                                id: task.supabaseId,
+                                user_id: user.id,
+                                manual_order: task.manualOrder,
+                                last_ordered_device: getDeviceId(),
+                                last_ordered_at: new Date().toISOString()
+                            }));
+                            
+                            // Update all at once using upsert
+                            for (const update of updates) {
+                                await supabase
+                                    .from('tasks')
+                                    .update({
+                                        manual_order: update.manual_order,
+                                        last_ordered_device: update.last_ordered_device,
+                                        last_ordered_at: update.last_ordered_at
+                                    })
+                                    .eq('id', update.id)
+                                    .eq('user_id', user.id);
+                            }
+                        } catch (error) {
+                            console.error('❌ Batch save error:', error);
+                        }
+                    };
+                    
+                    batchUpdate();
                 }
                 
                 showToast('Task moved up', false);
@@ -1823,10 +1851,38 @@
                 setTasks(updatedTasks);
                 setIsManualOrder(true);
                 
-                // Save to Supabase
+                // V2.6.3-FIX: Batch save with single Supabase call to reduce real-time events
                 const tasksToSave = updatedTasks.filter(t => t.manualOrder !== null && t.supabaseId);
                 if (tasksToSave.length > 0 && user) {
-                    Promise.all(tasksToSave.map(task => saveTaskToSupabase(task)));
+                    // Use a single batch update instead of individual saves
+                    const batchUpdate = async () => {
+                        try {
+                            const updates = tasksToSave.map(task => ({
+                                id: task.supabaseId,
+                                user_id: user.id,
+                                manual_order: task.manualOrder,
+                                last_ordered_device: getDeviceId(),
+                                last_ordered_at: new Date().toISOString()
+                            }));
+                            
+                            // Update all at once
+                            for (const update of updates) {
+                                await supabase
+                                    .from('tasks')
+                                    .update({
+                                        manual_order: update.manual_order,
+                                        last_ordered_device: update.last_ordered_device,
+                                        last_ordered_at: update.last_ordered_at
+                                    })
+                                    .eq('id', update.id)
+                                    .eq('user_id', user.id);
+                            }
+                        } catch (error) {
+                            console.error('❌ Batch save error:', error);
+                        }
+                    };
+                    
+                    batchUpdate();
                 }
                 
                 showToast('Task moved down', false);
@@ -3273,7 +3329,8 @@
                                 </div>
                                 <div 
                                     className="flex-1" 
-                                    style={{ minWidth: '150px', wordWrap: 'break-word', overflowWrap: 'break-word' }}
+                                    style={{ minWidth: '150px', wordWrap: 'break-word', overflowWrap: 'break-word', cursor: 'pointer' }}
+                                    onClick={() => setExpandedTasks(p => ({ ...p, [task.id]: !p[task.id] }))}
                                 >
                                     <p className="text-sm font-medium break-words" style={{ wordBreak: 'break-word' }}>{task.text}</p>
                                     
@@ -3361,12 +3418,14 @@
                                             e.stopPropagation();
                                             console.log('⚡ Quick Edit button clicked for:', task.text);
                                             setQuickEditTask({...task});
+                                            setShowQuickEdit(true);
                                         }}
                                         onTouchEnd={(e) => {
                                             e.preventDefault();
                                             e.stopPropagation();
                                             console.log('⚡ Quick Edit button touched for:', task.text);
                                             setQuickEditTask({...task});
+                                            setShowQuickEdit(true);
                                         }}
                                         className="p-1 hover:bg-purple-100 rounded text-purple-600"
                                         title="Quick Edit (fast)"
