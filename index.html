@@ -990,6 +990,14 @@
                             console.log('📥 Tasks change detected:', payload.eventType);
                             
                             if (payload.eventType === 'INSERT') {
+                                // V2.6.3-TYPING-FIX: Skip INSERT if user is typing in any input
+                                // This prevents new task input from being cleared
+                                const activeElement = document.activeElement;
+                                if (activeElement && (activeElement.tagName === 'INPUT' || activeElement.tagName === 'TEXTAREA')) {
+                                    console.log('⏭️ Skipping INSERT event - user is typing in input field');
+                                    return;
+                                }
+                                
                                 const newTask = {
                                     id: payload.new.id,
                                     supabaseId: payload.new.id,
