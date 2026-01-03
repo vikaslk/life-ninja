@@ -990,13 +990,24 @@
                             console.log('📥 Tasks change detected:', payload.eventType);
                             
                             if (payload.eventType === 'INSERT') {
+                                console.log('🔍 INSERT EVENT RECEIVED');
+                                console.log('🔍 payload.new.text:', payload.new.text);
+                                
                                 // V2.6.3-TYPING-FIX: Skip INSERT if user is typing in any input
                                 // This prevents new task input from being cleared
                                 const activeElement = document.activeElement;
+                                console.log('🔍 activeElement:', activeElement);
+                                console.log('🔍 activeElement.tagName:', activeElement?.tagName);
+                                console.log('🔍 activeElement.id:', activeElement?.id);
+                                console.log('🔍 activeElement.placeholder:', activeElement?.placeholder);
+                                console.log('🔍 activeElement.value:', activeElement?.value);
+                                
                                 if (activeElement && (activeElement.tagName === 'INPUT' || activeElement.tagName === 'TEXTAREA')) {
-                                    console.log('⏭️ Skipping INSERT event - user is typing in input field');
+                                    console.log('⏭️ ✅ SUCCESSFULLY SKIPPING INSERT - user is typing');
                                     return;
                                 }
+                                
+                                console.log('🔍 ❌ NOT SKIPPING - proceeding with INSERT');
                                 
                                 const newTask = {
                                     id: payload.new.id,
@@ -1022,10 +1033,16 @@
                                 // Only add if not already in local state
                                 setTasks(prev => {
                                     const exists = prev.some(t => t.id === newTask.id);
-                                    if (exists) return prev;
+                                    if (exists) {
+                                        console.log('🔍 Task already exists, returning prev');
+                                        return prev;
+                                    }
                                     console.log('✨ Adding new task from real-time:', newTask.text);
+                                    console.log('🔍 About to call setTasks - this will trigger re-render');
                                     return [...prev, newTask];
                                 });
+                                
+                                console.log('🔍 INSERT handler complete');
                             }
                             
                             if (payload.eventType === 'UPDATE') {
@@ -4207,6 +4224,14 @@
                 // Fix: Local state for search to prevent focus loss
                 const [localSearch, setLocalSearch] = useState(searchQuery);
                 const searchTimeoutRef = useRef(null);
+                
+                // V2.6.3-DEBUG: Log when newTaskText changes
+                useEffect(() => {
+                    console.log('🔍 newTaskText changed to:', newTaskText);
+                }, [newTaskText]);
+                
+                // V2.6.3-DEBUG: Log when ListView re-renders
+                console.log('🔍 ListView component rendering, newTaskText =', newTaskText);
 
                 return (
                     <div className="space-y-4">
@@ -4475,13 +4500,19 @@
                                     type="text"
                                     placeholder="Add a new task..."
                                     value={newTaskText}
-                                    onChange={(e) => setNewTaskText(e.target.value)}
+                                    onChange={(e) => {
+                                        console.log('🔍 Input onChange fired, new value:', e.target.value);
+                                        setNewTaskText(e.target.value);
+                                    }}
                                     onKeyPress={(e) => {
                                         if (e.key === 'Enter' && newTaskText.trim()) {
+                                            console.log('🔍 Enter pressed, creating task:', newTaskText);
                                             createTask({ text: newTaskText });
                                             setNewTaskText('');
                                         }
                                     }}
+                                    onFocus={() => console.log('🔍 Input FOCUSED')}
+                                    onBlur={() => console.log('🔍 Input BLURRED')}
                                     className="flex-1 px-4 py-2 border rounded-lg"
                                 />
                                 <button
