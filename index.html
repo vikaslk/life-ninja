@@ -1002,8 +1002,18 @@
                                 console.log('🔍 activeElement.placeholder:', activeElement?.placeholder);
                                 console.log('🔍 activeElement.value:', activeElement?.value);
                                 
+                                // Check 1: Is input focused?
                                 if (activeElement && (activeElement.tagName === 'INPUT' || activeElement.tagName === 'TEXTAREA')) {
-                                    console.log('⏭️ ✅ SUCCESSFULLY SKIPPING INSERT - user is typing');
+                                    console.log('⏭️ ✅ SUCCESSFULLY SKIPPING INSERT - user is typing (input focused)');
+                                    return;
+                                }
+                                
+                                // V2.6.3-GRACE: Check 2: Was a task just created? (Grace period)
+                                const timeSinceLastCreation = Date.now() - lastTaskCreationTimeRef.current;
+                                console.log('🕐 Time since last task creation:', timeSinceLastCreation, 'ms');
+                                
+                                if (timeSinceLastCreation < 3000) { // 3 second grace period
+                                    console.log('⏭️ ✅ SUCCESSFULLY SKIPPING INSERT - within grace period (rapid task creation)');
                                     return;
                                 }
                                 
@@ -1565,6 +1575,7 @@
             
             // V2.5.7-FIX: Prevent real-time updates from disrupting manual reorder
             const isReorderingRef = useRef(false);
+            const lastTaskCreationTimeRef = useRef(0); // V2.6.3-GRACE: Track when tasks are created
             const reorderTimeoutRef = useRef(null);
             const [isSyncingFromRealtime, setIsSyncingFromRealtime] = useState(false);
             
@@ -1728,6 +1739,10 @@
 
             // ====== TASK MANAGEMENT FUNCTIONS ======
             const createTask = async (taskData) => {
+                // V2.6.3-GRACE: Record task creation time for grace period
+                lastTaskCreationTimeRef.current = Date.now();
+                console.log('🕐 Task creation started, grace period begins');
+                
                 // Create temporary task with temp ID
                 const tempId = 'temp_' + Date.now();
                 const newTask = {
