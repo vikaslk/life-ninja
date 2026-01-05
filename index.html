@@ -1482,6 +1482,7 @@
             const [selectedDate, setSelectedDate] = useState(formatDate(new Date()));
             const [currentMonth, setCurrentMonth] = useState(new Date().getMonth());
             const [currentYear, setCurrentYear] = useState(new Date().getFullYear());
+            const [newTaskText, setNewTaskText] = useState(''); // V2.6.3-LIFT: Moved from ListView to persist across re-renders
             
             // Task and organizational data
             const [tasks, setTasks] = useStickyState([], 'ln_tasks');
@@ -4226,8 +4227,8 @@
             };
 
             // ====== VIEW: LIST VIEW ======
-            const ListView = () => {
-                const [newTaskText, setNewTaskText] = useState('');
+            const ListView = ({ newTaskText, setNewTaskText }) => {
+                // V2.6.3-LIFT: newTaskText is now passed from parent, not local state
                 // Fix: Local state for search to prevent focus loss
                 const [localSearch, setLocalSearch] = useState(searchQuery);
                 const searchTimeoutRef = useRef(null);
@@ -7271,7 +7272,7 @@
                             <IndividualListView listId={parseInt(currentView.split(':')[1])} />
                         )}
                         
-                        {currentView === 'list' && <ListView />}
+                        {currentView === 'list' && <ListView newTaskText={newTaskText} setNewTaskText={setNewTaskText} />}
                         {currentView === 'calendar' && <CalendarView />}
                         {currentView === 'timeline' && <TimelineView />}
                         {currentView === 'gantt' && <GanttView />}
