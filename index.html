@@ -993,27 +993,24 @@
                                 console.log('🔍 INSERT EVENT RECEIVED');
                                 console.log('🔍 payload.new.text:', payload.new.text);
                                 
-                                // V2.6.3-TYPING-FIX: Skip INSERT if user is typing in any input
-                                // This prevents new task input from being cleared
-                                const activeElement = document.activeElement;
-                                console.log('🔍 activeElement:', activeElement);
-                                console.log('🔍 activeElement.tagName:', activeElement?.tagName);
-                                console.log('🔍 activeElement.id:', activeElement?.id);
-                                console.log('🔍 activeElement.placeholder:', activeElement?.placeholder);
-                                console.log('🔍 activeElement.value:', activeElement?.value);
+                                // V2.6.3-VALUE-CHECK: Skip INSERT if "Add new task" input has text
+                                // This is the CORRECT solution - if user is typing, don't clear the input!
+                                const newTaskInput = document.querySelector('input[placeholder="Add a new task..."]');
+                                const inputHasText = newTaskInput && newTaskInput.value && newTaskInput.value.trim().length > 0;
                                 
-                                // Check 1: Is input focused?
-                                if (activeElement && (activeElement.tagName === 'INPUT' || activeElement.tagName === 'TEXTAREA')) {
-                                    console.log('⏭️ ✅ SUCCESSFULLY SKIPPING INSERT - user is typing (input focused)');
+                                console.log('🔍 newTaskInput found:', !!newTaskInput);
+                                console.log('🔍 newTaskInput.value:', newTaskInput?.value);
+                                console.log('🔍 inputHasText:', inputHasText);
+                                
+                                if (inputHasText) {
+                                    console.log('⏭️ ✅ SKIPPING INSERT - input has text (user is typing)');
                                     return;
                                 }
                                 
-                                // V2.6.3-GRACE: Check 2: Was a task just created? (Grace period)
-                                const timeSinceLastCreation = Date.now() - lastTaskCreationTimeRef.current;
-                                console.log('🕐 Time since last task creation:', timeSinceLastCreation, 'ms');
-                                
-                                if (timeSinceLastCreation < 3000) { // 3 second grace period
-                                    console.log('⏭️ ✅ SUCCESSFULLY SKIPPING INSERT - within grace period (rapid task creation)');
+                                // Fallback: Check if ANY input is focused
+                                const activeElement = document.activeElement;
+                                if (activeElement && (activeElement.tagName === 'INPUT' || activeElement.tagName === 'TEXTAREA')) {
+                                    console.log('⏭️ ✅ SKIPPING INSERT - input is focused');
                                     return;
                                 }
                                 
@@ -1575,7 +1572,6 @@
             
             // V2.5.7-FIX: Prevent real-time updates from disrupting manual reorder
             const isReorderingRef = useRef(false);
-            const lastTaskCreationTimeRef = useRef(0); // V2.6.3-GRACE: Track when tasks are created
             const reorderTimeoutRef = useRef(null);
             const [isSyncingFromRealtime, setIsSyncingFromRealtime] = useState(false);
             
@@ -1739,10 +1735,6 @@
 
             // ====== TASK MANAGEMENT FUNCTIONS ======
             const createTask = async (taskData) => {
-                // V2.6.3-GRACE: Record task creation time for grace period
-                lastTaskCreationTimeRef.current = Date.now();
-                console.log('🕐 Task creation started, grace period begins');
-                
                 // Create temporary task with temp ID
                 const tempId = 'temp_' + Date.now();
                 const newTask = {
@@ -4239,6 +4231,7 @@
                 // Fix: Local state for search to prevent focus loss
                 const [localSearch, setLocalSearch] = useState(searchQuery);
                 const searchTimeoutRef = useRef(null);
+                const newTaskInputRef = useRef(null); // V2.6.3-FOCUS: Track input for focus restoration
                 
                 // V2.6.3-DEBUG: Log when newTaskText changes
                 useEffect(() => {
@@ -4512,6 +4505,7 @@
                         <div className="bg-white rounded-lg shadow p-4">
                             <div className="flex gap-2">
                                 <input
+                                    ref={newTaskInputRef}
                                     type="text"
                                     placeholder="Add a new task..."
                                     value={newTaskText}
@@ -4524,6 +4518,13 @@
                                             console.log('🔍 Enter pressed, creating task:', newTaskText);
                                             createTask({ text: newTaskText });
                                             setNewTaskText('');
+                                            // V2.6.3-FOCUS: Restore focus immediately for continuous task entry
+                                            setTimeout(() => {
+                                                if (newTaskInputRef.current) {
+                                                    newTaskInputRef.current.focus();
+                                                    console.log('🔍 Focus restored to input');
+                                                }
+                                            }, 0);
                                         }
                                     }}
                                     onFocus={() => console.log('🔍 Input FOCUSED')}
@@ -4535,6 +4536,13 @@
                                         if (newTaskText.trim()) {
                                             createTask({ text: newTaskText });
                                             setNewTaskText('');
+                                            // V2.6.3-FOCUS: Restore focus after button click too
+                                            setTimeout(() => {
+                                                if (newTaskInputRef.current) {
+                                                    newTaskInputRef.current.focus();
+                                                    console.log('🔍 Focus restored to input after button click');
+                                                }
+                                            }, 0);
                                         }
                                     }}
                                     className="px-6 py-2 bg-indigo-600 text-white rounded-lg font-semibold hover:bg-indigo-700"
