@@ -1482,7 +1482,6 @@
             const [selectedDate, setSelectedDate] = useState(formatDate(new Date()));
             const [currentMonth, setCurrentMonth] = useState(new Date().getMonth());
             const [currentYear, setCurrentYear] = useState(new Date().getFullYear());
-            const newTaskTextRef = useRef(''); // V2.6.3-REF: Use ref to persist across remounts without triggering re-renders
             
             // Task and organizational data
             const [tasks, setTasks] = useStickyState([], 'ln_tasks');
@@ -4227,19 +4226,11 @@
             };
 
             // ====== VIEW: LIST VIEW ======
-            const ListView = ({ newTaskTextRef }) => {
-                // V2.6.3-REF: Use local state for typing (no parent re-renders), persist in ref across unmounts
-                const [newTaskText, setNewTaskText] = useState(() => newTaskTextRef.current || '');
+            const ListView = () => {
+                // V2.6.3-UNCONTROLLED: Use uncontrolled input - no state, just ref
                 const [localSearch, setLocalSearch] = useState(searchQuery);
                 const searchTimeoutRef = useRef(null);
                 const newTaskInputRef = useRef(null);
-                
-                // Save to ref before unmount
-                useEffect(() => {
-                    return () => {
-                        newTaskTextRef.current = newTaskText;
-                    };
-                }, [newTaskText, newTaskTextRef]);
 
                 return (
                     <div className="space-y-4">
@@ -4508,34 +4499,24 @@
                                     ref={newTaskInputRef}
                                     type="text"
                                     placeholder="Add a new task..."
-                                    value={newTaskText}
-                                    onChange={(e) => {
-                                        setNewTaskText(e.target.value);
-                                    }}
                                     onKeyDown={(e) => {
-                                        if (e.key === 'Enter' && newTaskText.trim()) {
+                                        const inputElement = newTaskInputRef.current;
+                                        const taskText = inputElement ? inputElement.value.trim() : '';
+                                        
+                                        if (e.key === 'Enter' && taskText) {
                                             e.preventDefault(); // Prevent form submission
-                                            const taskText = newTaskText.trim();
-                                            const inputElement = newTaskInputRef.current;
                                             
-                                            // FORCE clear the input immediately via DOM
+                                            // Clear immediately
                                             if (inputElement) {
-                                                inputElement.value = '';  // Direct DOM manipulation
+                                                inputElement.value = '';
                                             }
-                                            
-                                            // Clear state and ref
-                                            setNewTaskText('');
-                                            newTaskTextRef.current = '';
                                             
                                             // FORCE focus to stay (multiple attempts)
                                             if (inputElement) {
                                                 inputElement.focus();  // Immediate
-                                                
-                                                // Keep trying to focus in case something steals it
                                                 setTimeout(() => inputElement.focus(), 0);
                                                 setTimeout(() => inputElement.focus(), 10);
                                                 setTimeout(() => inputElement.focus(), 50);
-                                                
                                                 requestAnimationFrame(() => inputElement.focus());
                                             }
                                             
@@ -4547,27 +4528,21 @@
                                 />
                                 <button
                                     onClick={() => {
-                                        if (newTaskText.trim()) {
-                                            const taskText = newTaskText.trim();
-                                            const inputElement = newTaskInputRef.current;
-                                            
-                                            // FORCE clear the input immediately via DOM
+                                        const inputElement = newTaskInputRef.current;
+                                        const taskText = inputElement ? inputElement.value.trim() : '';
+                                        
+                                        if (taskText) {
+                                            // Clear immediately
                                             if (inputElement) {
-                                                inputElement.value = '';  // Direct DOM manipulation
+                                                inputElement.value = '';
                                             }
-                                            
-                                            // Clear state and ref
-                                            setNewTaskText('');
-                                            newTaskTextRef.current = '';
                                             
                                             // FORCE focus to stay (multiple attempts)
                                             if (inputElement) {
                                                 inputElement.focus();  // Immediate
-                                                
                                                 setTimeout(() => inputElement.focus(), 0);
                                                 setTimeout(() => inputElement.focus(), 10);
                                                 setTimeout(() => inputElement.focus(), 50);
-                                                
                                                 requestAnimationFrame(() => inputElement.focus());
                                             }
                                             
@@ -7304,7 +7279,7 @@
                             <IndividualListView listId={parseInt(currentView.split(':')[1])} />
                         )}
                         
-                        {currentView === 'list' && <MemoizedListView newTaskTextRef={newTaskTextRef} />}
+                        {currentView === 'list' && <MemoizedListView />}
                         {currentView === 'calendar' && <CalendarView />}
                         {currentView === 'timeline' && <TimelineView />}
                         {currentView === 'gantt' && <GanttView />}
