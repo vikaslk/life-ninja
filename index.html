@@ -4516,18 +4516,24 @@
                                         if (e.key === 'Enter' && newTaskText.trim()) {
                                             e.preventDefault(); // Prevent form submission
                                             const taskText = newTaskText.trim();
+                                            const inputElement = newTaskInputRef.current;
                                             
                                             // Clear immediately
                                             setNewTaskText('');
                                             newTaskTextRef.current = '';
                                             
-                                            // Create task
+                                            // Keep focus synchronously (before any re-renders)
+                                            if (inputElement) {
+                                                inputElement.focus();
+                                            }
+                                            
+                                            // Create task (may cause re-render)
                                             createTask({ text: taskText });
                                             
-                                            // Restore focus using requestAnimationFrame (more reliable)
+                                            // Restore focus again after any re-renders
                                             requestAnimationFrame(() => {
-                                                if (newTaskInputRef.current) {
-                                                    newTaskInputRef.current.focus();
+                                                if (inputElement) {
+                                                    inputElement.focus();
                                                 }
                                             });
                                         }
@@ -4538,18 +4544,24 @@
                                     onClick={() => {
                                         if (newTaskText.trim()) {
                                             const taskText = newTaskText.trim();
+                                            const inputElement = newTaskInputRef.current;
                                             
                                             // Clear immediately
                                             setNewTaskText('');
                                             newTaskTextRef.current = '';
                                             
+                                            // Keep focus synchronously
+                                            if (inputElement) {
+                                                inputElement.focus();
+                                            }
+                                            
                                             // Create task
                                             createTask({ text: taskText });
                                             
-                                            // Restore focus
+                                            // Restore focus again
                                             requestAnimationFrame(() => {
-                                                if (newTaskInputRef.current) {
-                                                    newTaskInputRef.current.focus();
+                                                if (inputElement) {
+                                                    inputElement.focus();
                                                 }
                                             });
                                         }
@@ -4653,6 +4665,9 @@
                     </div>
                 );
             };
+            
+            // V2.6.3-MEMO: Wrap with React.memo to prevent remounting when parent tasks change
+            const MemoizedListView = React.memo(ListView);
 
             // Continue in next part...
             
@@ -7280,7 +7295,7 @@
                             <IndividualListView listId={parseInt(currentView.split(':')[1])} />
                         )}
                         
-                        {currentView === 'list' && <ListView newTaskTextRef={newTaskTextRef} />}
+                        {currentView === 'list' && <MemoizedListView newTaskTextRef={newTaskTextRef} />}
                         {currentView === 'calendar' && <CalendarView />}
                         {currentView === 'timeline' && <TimelineView />}
                         {currentView === 'gantt' && <GanttView />}
