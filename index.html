@@ -993,17 +993,28 @@
                                 console.log('🔍 INSERT EVENT RECEIVED');
                                 console.log('🔍 payload.new.text:', payload.new.text);
                                 
-                                // V2.6.3-VALUE-CHECK: Skip INSERT if "Add new task" input has text
-                                // This is the CORRECT solution - if user is typing, don't clear the input!
+                                // V2.6.3-FLAG: Check if user is in rapid task creation mode
+                                const timeSinceLastCreation = Date.now() - lastTaskCreationTimeRef.current;
+                                const isRapidEntry = isCreatingTasksRef.current && timeSinceLastCreation < 4000; // 4 second window
+                                
+                                console.log('🔍 isCreatingTasksRef:', isCreatingTasksRef.current);
+                                console.log('🔍 timeSinceLastCreation:', timeSinceLastCreation, 'ms');
+                                console.log('🔍 isRapidEntry:', isRapidEntry);
+                                
+                                if (isRapidEntry) {
+                                    console.log('⏭️ ✅ SKIPPING INSERT - user is in rapid task entry mode');
+                                    return;
+                                }
+                                
+                                // Fallback: Check if input has text (for typing in existing task)
                                 const newTaskInput = document.querySelector('input[placeholder="Add a new task..."]');
                                 const inputHasText = newTaskInput && newTaskInput.value && newTaskInput.value.trim().length > 0;
                                 
-                                console.log('🔍 newTaskInput found:', !!newTaskInput);
                                 console.log('🔍 newTaskInput.value:', newTaskInput?.value);
                                 console.log('🔍 inputHasText:', inputHasText);
                                 
                                 if (inputHasText) {
-                                    console.log('⏭️ ✅ SKIPPING INSERT - input has text (user is typing)');
+                                    console.log('⏭️ ✅ SKIPPING INSERT - input has text');
                                     return;
                                 }
                                 
@@ -1482,6 +1493,9 @@
             const [selectedDate, setSelectedDate] = useState(formatDate(new Date()));
             const [currentMonth, setCurrentMonth] = useState(new Date().getMonth());
             const [currentYear, setCurrentYear] = useState(new Date().getFullYear());
+            const newTaskTextRef = useRef(''); // V2.6.3-REF: Use ref to persist across remounts without triggering re-renders
+            const isCreatingTasksRef = useRef(false); // V2.6.3-FLAG: Track if user is rapidly creating tasks
+            const lastTaskCreationTimeRef = useRef(0); // V2.6.3-FLAG: Track when last task was created
             
             // Task and organizational data
             const [tasks, setTasks] = useStickyState([], 'ln_tasks');
@@ -4226,11 +4240,19 @@
             };
 
             // ====== VIEW: LIST VIEW ======
-            const ListView = () => {
-                // V2.6.3-UNCONTROLLED: Use uncontrolled input - no state, just ref
+            const ListView = ({ newTaskTextRef }) => {
+                // V2.6.3-REF: Use local state for typing (no parent re-renders), persist in ref across unmounts
+                const [newTaskText, setNewTaskText] = useState(() => newTaskTextRef.current || '');
                 const [localSearch, setLocalSearch] = useState(searchQuery);
                 const searchTimeoutRef = useRef(null);
                 const newTaskInputRef = useRef(null);
+                
+                // Save to ref before unmount
+                useEffect(() => {
+                    return () => {
+                        newTaskTextRef.current = newTaskText;
+                    };
+                }, [newTaskText, newTaskTextRef]);
 
                 return (
                     <div className="space-y-4">
@@ -4499,55 +4521,101 @@
                                     ref={newTaskInputRef}
                                     type="text"
                                     placeholder="Add a new task..."
-                                    onKeyDown={(e) => {
-                                        const inputElement = newTaskInputRef.current;
-                                        const taskText = inputElement ? inputElement.value.trim() : '';
+                                    value={newTaskText}
+                                    onChange={(e) => {
+                                        setNewTaskText(e.target.value);
                                         
-                                        if (e.key === 'Enter' && taskText) {
+                                        // V2.6.3-FLAG: If user is typing, extend the rapid entry window
+                                        if (isCreatingTasksRef.current && e.target.value.trim().length > 0) {
+                                            lastTaskCreationTimeRef.current = Date.now();
+                                        }
+                                    }}
+                                    onKeyDown={(e) => {
+                                        if (e.key === 'Enter' && newTaskText.trim()) {
                                             e.preventDefault(); // Prevent form submission
+                                            const taskText = newTaskText.trim();
+                                            const inputElement = newTaskInputRef.current;
                                             
-                                            // Clear immediately
+                                            // V2.6.3-FLAG: Mark that we're in rapid entry mode
+                                            isCreatingTasksRef.current = true;
+                                            lastTaskCreationTimeRef.current = Date.now();
+                                            
+                                            // Clear the input via DOM (immediate visual feedback)
                                             if (inputElement) {
                                                 inputElement.value = '';
                                             }
                                             
-                                            // FORCE focus to stay (multiple attempts)
+                                            // Clear state and ref
+                                            setNewTaskText('');
+                                            newTaskTextRef.current = '';
+                                            
+                                            // Keep focus (multiple attempts for reliability)
                                             if (inputElement) {
-                                                inputElement.focus();  // Immediate
+                                                inputElement.focus();
                                                 setTimeout(() => inputElement.focus(), 0);
                                                 setTimeout(() => inputElement.focus(), 10);
-                                                setTimeout(() => inputElement.focus(), 50);
                                                 requestAnimationFrame(() => inputElement.focus());
                                             }
                                             
-                                            // Create task (may cause re-render)
+                                            // Create task
                                             createTask({ text: taskText });
+                                            
+                                            // Clear the rapid entry flag after 4 seconds of no activity
+                                            setTimeout(() => {
+                                                const timeSinceCreation = Date.now() - lastTaskCreationTimeRef.current;
+                                                if (timeSinceCreation >= 4000) {
+                                                    isCreatingTasksRef.current = false;
+                                                    console.log('🔄 Cleared rapid entry mode (timeout)');
+                                                }
+                                            }, 4000);
                                         }
                                     }}
                                     className="flex-1 px-4 py-2 border rounded-lg"
                                 />
                                 <button
                                     onClick={() => {
-                                        const inputElement = newTaskInputRef.current;
-                                        const taskText = inputElement ? inputElement.value.trim() : '';
-                                        
-                                        if (taskText) {
-                                            // Clear immediately
+                                        if (newTaskText.trim()) {
+                                            const taskText = newTaskText.trim();
+                                            const inputElement = newTaskInputRef.current;
+                                            
+                                            // V2.6.3-FLAG: Mark that we're in rapid entry mode
+                                            isCreatingTasksRef.current = true;
+                                            lastTaskCreationTimeRef.current = Date.now();
+                                            
+                                            // Clear the input via DOM (immediate visual feedback)
                                             if (inputElement) {
                                                 inputElement.value = '';
                                             }
                                             
-                                            // FORCE focus to stay (multiple attempts)
+                                            // Clear state and ref
+                                            setNewTaskText('');
+                                            newTaskTextRef.current = '';
+                                            
+                                            // Keep focus
                                             if (inputElement) {
-                                                inputElement.focus();  // Immediate
+                                                inputElement.focus();
                                                 setTimeout(() => inputElement.focus(), 0);
                                                 setTimeout(() => inputElement.focus(), 10);
-                                                setTimeout(() => inputElement.focus(), 50);
                                                 requestAnimationFrame(() => inputElement.focus());
                                             }
                                             
                                             // Create task
                                             createTask({ text: taskText });
+                                            
+                                            // Clear the rapid entry flag after 4 seconds
+                                            setTimeout(() => {
+                                                const timeSinceCreation = Date.now() - lastTaskCreationTimeRef.current;
+                                                if (timeSinceCreation >= 4000) {
+                                                    isCreatingTasksRef.current = false;
+                                                    console.log('🔄 Cleared rapid entry mode (timeout)');
+                                                }
+                                            }, 4000);
+                                        }
+                                    }}
+                                                if (inputElement) {
+                                                    inputElement.focus();
+                                                }
+                                            });
                                         }
                                     }}
                                     className="px-6 py-2 bg-indigo-600 text-white rounded-lg font-semibold hover:bg-indigo-700"
@@ -7279,7 +7347,7 @@
                             <IndividualListView listId={parseInt(currentView.split(':')[1])} />
                         )}
                         
-                        {currentView === 'list' && <MemoizedListView />}
+                        {currentView === 'list' && <MemoizedListView newTaskTextRef={newTaskTextRef} />}
                         {currentView === 'calendar' && <CalendarView />}
                         {currentView === 'timeline' && <TimelineView />}
                         {currentView === 'gantt' && <GanttView />}
