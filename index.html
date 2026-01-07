@@ -4233,21 +4233,13 @@
                 const [localSearch, setLocalSearch] = useState(searchQuery);
                 const searchTimeoutRef = useRef(null);
                 const newTaskInputRef = useRef(null);
-                const textRef = useRef(newTaskText); // Track current text value
                 
-                // Update ref on every change
-                useEffect(() => {
-                    textRef.current = newTaskText;
-                }, [newTaskText]);
-                
-                // Save to parent ref ONLY on unmount (not on every render)
+                // Save to ref before unmount
                 useEffect(() => {
                     return () => {
-                        // Only save if we're actually unmounting (tab switch, etc)
-                        // The textRef.current has the latest value at unmount time
-                        newTaskTextRef.current = textRef.current;
+                        newTaskTextRef.current = newTaskText;
                     };
-                }, [newTaskTextRef]); // Only depend on newTaskTextRef, not newTaskText!
+                }, [newTaskText, newTaskTextRef]);
 
                 return (
                     <div className="space-y-4">
@@ -4526,24 +4518,29 @@
                                             const taskText = newTaskText.trim();
                                             const inputElement = newTaskInputRef.current;
                                             
-                                            // Clear immediately
+                                            // FORCE clear the input immediately via DOM
+                                            if (inputElement) {
+                                                inputElement.value = '';  // Direct DOM manipulation
+                                            }
+                                            
+                                            // Clear state and ref
                                             setNewTaskText('');
                                             newTaskTextRef.current = '';
                                             
-                                            // Keep focus synchronously (before any re-renders)
+                                            // FORCE focus to stay (multiple attempts)
                                             if (inputElement) {
-                                                inputElement.focus();
+                                                inputElement.focus();  // Immediate
+                                                
+                                                // Keep trying to focus in case something steals it
+                                                setTimeout(() => inputElement.focus(), 0);
+                                                setTimeout(() => inputElement.focus(), 10);
+                                                setTimeout(() => inputElement.focus(), 50);
+                                                
+                                                requestAnimationFrame(() => inputElement.focus());
                                             }
                                             
                                             // Create task (may cause re-render)
                                             createTask({ text: taskText });
-                                            
-                                            // Restore focus again after any re-renders
-                                            requestAnimationFrame(() => {
-                                                if (inputElement) {
-                                                    inputElement.focus();
-                                                }
-                                            });
                                         }
                                     }}
                                     className="flex-1 px-4 py-2 border rounded-lg"
@@ -4554,24 +4551,28 @@
                                             const taskText = newTaskText.trim();
                                             const inputElement = newTaskInputRef.current;
                                             
-                                            // Clear immediately
+                                            // FORCE clear the input immediately via DOM
+                                            if (inputElement) {
+                                                inputElement.value = '';  // Direct DOM manipulation
+                                            }
+                                            
+                                            // Clear state and ref
                                             setNewTaskText('');
                                             newTaskTextRef.current = '';
                                             
-                                            // Keep focus synchronously
+                                            // FORCE focus to stay (multiple attempts)
                                             if (inputElement) {
-                                                inputElement.focus();
+                                                inputElement.focus();  // Immediate
+                                                
+                                                setTimeout(() => inputElement.focus(), 0);
+                                                setTimeout(() => inputElement.focus(), 10);
+                                                setTimeout(() => inputElement.focus(), 50);
+                                                
+                                                requestAnimationFrame(() => inputElement.focus());
                                             }
                                             
                                             // Create task
                                             createTask({ text: taskText });
-                                            
-                                            // Restore focus again
-                                            requestAnimationFrame(() => {
-                                                if (inputElement) {
-                                                    inputElement.focus();
-                                                }
-                                            });
                                         }
                                     }}
                                     className="px-6 py-2 bg-indigo-600 text-white rounded-lg font-semibold hover:bg-indigo-700"
