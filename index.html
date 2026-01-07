@@ -4233,13 +4233,21 @@
                 const [localSearch, setLocalSearch] = useState(searchQuery);
                 const searchTimeoutRef = useRef(null);
                 const newTaskInputRef = useRef(null);
+                const textRef = useRef(newTaskText); // Track current text value
                 
-                // Save to ref before unmount
+                // Update ref on every change
+                useEffect(() => {
+                    textRef.current = newTaskText;
+                }, [newTaskText]);
+                
+                // Save to parent ref ONLY on unmount (not on every render)
                 useEffect(() => {
                     return () => {
-                        newTaskTextRef.current = newTaskText;
+                        // Only save if we're actually unmounting (tab switch, etc)
+                        // The textRef.current has the latest value at unmount time
+                        newTaskTextRef.current = textRef.current;
                     };
-                }, [newTaskText, newTaskTextRef]);
+                }, [newTaskTextRef]); // Only depend on newTaskTextRef, not newTaskText!
 
                 return (
                     <div className="space-y-4">
