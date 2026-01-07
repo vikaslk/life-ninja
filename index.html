@@ -4512,17 +4512,24 @@
                                     onChange={(e) => {
                                         setNewTaskText(e.target.value);
                                     }}
-                                    onKeyPress={(e) => {
+                                    onKeyDown={(e) => {
                                         if (e.key === 'Enter' && newTaskText.trim()) {
-                                            createTask({ text: newTaskText });
+                                            e.preventDefault(); // Prevent form submission
+                                            const taskText = newTaskText.trim();
+                                            
+                                            // Clear immediately
                                             setNewTaskText('');
-                                            newTaskTextRef.current = ''; // Clear ref too
-                                            // V2.6.3-FOCUS: Restore focus immediately for continuous task entry
-                                            setTimeout(() => {
+                                            newTaskTextRef.current = '';
+                                            
+                                            // Create task
+                                            createTask({ text: taskText });
+                                            
+                                            // Restore focus using requestAnimationFrame (more reliable)
+                                            requestAnimationFrame(() => {
                                                 if (newTaskInputRef.current) {
                                                     newTaskInputRef.current.focus();
                                                 }
-                                            }, 0);
+                                            });
                                         }
                                     }}
                                     className="flex-1 px-4 py-2 border rounded-lg"
@@ -4530,15 +4537,21 @@
                                 <button
                                     onClick={() => {
                                         if (newTaskText.trim()) {
-                                            createTask({ text: newTaskText });
+                                            const taskText = newTaskText.trim();
+                                            
+                                            // Clear immediately
                                             setNewTaskText('');
-                                            newTaskTextRef.current = ''; // Clear ref too
-                                            // V2.6.3-FOCUS: Restore focus after button click too
-                                            setTimeout(() => {
+                                            newTaskTextRef.current = '';
+                                            
+                                            // Create task
+                                            createTask({ text: taskText });
+                                            
+                                            // Restore focus
+                                            requestAnimationFrame(() => {
                                                 if (newTaskInputRef.current) {
                                                     newTaskInputRef.current.focus();
                                                 }
-                                            }, 0);
+                                            });
                                         }
                                     }}
                                     className="px-6 py-2 bg-indigo-600 text-white rounded-lg font-semibold hover:bg-indigo-700"
