@@ -1482,7 +1482,7 @@
             const [selectedDate, setSelectedDate] = useState(formatDate(new Date()));
             const [currentMonth, setCurrentMonth] = useState(new Date().getMonth());
             const [currentYear, setCurrentYear] = useState(new Date().getFullYear());
-            const [newTaskText, setNewTaskText] = useState(''); // V2.6.3-LIFT: Moved from ListView to persist across re-renders
+            const newTaskTextRef = useRef(''); // V2.6.3-REF: Use ref to persist across remounts without triggering re-renders
             
             // Task and organizational data
             const [tasks, setTasks] = useStickyState([], 'ln_tasks');
@@ -4227,20 +4227,19 @@
             };
 
             // ====== VIEW: LIST VIEW ======
-            const ListView = ({ newTaskText, setNewTaskText }) => {
-                // V2.6.3-LIFT: newTaskText is now passed from parent, not local state
-                // Fix: Local state for search to prevent focus loss
+            const ListView = ({ newTaskTextRef }) => {
+                // V2.6.3-REF: Use local state for typing (no parent re-renders), persist in ref across unmounts
+                const [newTaskText, setNewTaskText] = useState(() => newTaskTextRef.current || '');
                 const [localSearch, setLocalSearch] = useState(searchQuery);
                 const searchTimeoutRef = useRef(null);
-                const newTaskInputRef = useRef(null); // V2.6.3-FOCUS: Track input for focus restoration
+                const newTaskInputRef = useRef(null);
                 
-                // V2.6.3-DEBUG: Log when newTaskText changes
+                // Save to ref before unmount
                 useEffect(() => {
-                    console.log('🔍 newTaskText changed to:', newTaskText);
-                }, [newTaskText]);
-                
-                // V2.6.3-DEBUG: Log when ListView re-renders
-                console.log('🔍 ListView component rendering, newTaskText =', newTaskText);
+                    return () => {
+                        newTaskTextRef.current = newTaskText;
+                    };
+                }, [newTaskText, newTaskTextRef]);
 
                 return (
                     <div className="space-y-4">
@@ -4511,25 +4510,21 @@
                                     placeholder="Add a new task..."
                                     value={newTaskText}
                                     onChange={(e) => {
-                                        console.log('🔍 Input onChange fired, new value:', e.target.value);
                                         setNewTaskText(e.target.value);
                                     }}
                                     onKeyPress={(e) => {
                                         if (e.key === 'Enter' && newTaskText.trim()) {
-                                            console.log('🔍 Enter pressed, creating task:', newTaskText);
                                             createTask({ text: newTaskText });
                                             setNewTaskText('');
+                                            newTaskTextRef.current = ''; // Clear ref too
                                             // V2.6.3-FOCUS: Restore focus immediately for continuous task entry
                                             setTimeout(() => {
                                                 if (newTaskInputRef.current) {
                                                     newTaskInputRef.current.focus();
-                                                    console.log('🔍 Focus restored to input');
                                                 }
                                             }, 0);
                                         }
                                     }}
-                                    onFocus={() => console.log('🔍 Input FOCUSED')}
-                                    onBlur={() => console.log('🔍 Input BLURRED')}
                                     className="flex-1 px-4 py-2 border rounded-lg"
                                 />
                                 <button
@@ -4537,11 +4532,11 @@
                                         if (newTaskText.trim()) {
                                             createTask({ text: newTaskText });
                                             setNewTaskText('');
+                                            newTaskTextRef.current = ''; // Clear ref too
                                             // V2.6.3-FOCUS: Restore focus after button click too
                                             setTimeout(() => {
                                                 if (newTaskInputRef.current) {
                                                     newTaskInputRef.current.focus();
-                                                    console.log('🔍 Focus restored to input after button click');
                                                 }
                                             }, 0);
                                         }
@@ -7272,7 +7267,7 @@
                             <IndividualListView listId={parseInt(currentView.split(':')[1])} />
                         )}
                         
-                        {currentView === 'list' && <ListView newTaskText={newTaskText} setNewTaskText={setNewTaskText} />}
+                        {currentView === 'list' && <ListView newTaskTextRef={newTaskTextRef} />}
                         {currentView === 'calendar' && <CalendarView />}
                         {currentView === 'timeline' && <TimelineView />}
                         {currentView === 'gantt' && <GanttView />}
