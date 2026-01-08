@@ -4579,6 +4579,16 @@
                                             // Create task
                                             createTask({ text: taskText });
                                             
+                                            // CRITICAL: Re-focus AFTER createTask causes re-render
+                                            // The above focus attempts happen BEFORE setTasks re-render
+                                            // These happen AFTER the re-render completes
+                                            if (inputElement) {
+                                                setTimeout(() => inputElement.focus(), 150);
+                                                setTimeout(() => inputElement.focus(), 200);
+                                                setTimeout(() => inputElement.focus(), 250);
+                                                setTimeout(() => inputElement.focus(), 300);
+                                            }
+                                            
                                             // Auto-clear flag after 4 seconds of no activity
                                             setTimeout(() => {
                                                 if (Date.now() - lastTaskCreationTimeRef.current >= 4000) {
@@ -4633,6 +4643,16 @@
                                             
                                             // Create task
                                             createTask({ text: taskText });
+                                            
+                                            // CRITICAL: Re-focus AFTER createTask causes re-render
+                                            // The above focus attempts happen BEFORE setTasks re-render
+                                            // These happen AFTER the re-render completes
+                                            if (inputElement) {
+                                                setTimeout(() => inputElement.focus(), 150);
+                                                setTimeout(() => inputElement.focus(), 200);
+                                                setTimeout(() => inputElement.focus(), 250);
+                                                setTimeout(() => inputElement.focus(), 300);
+                                            }
                                             
                                             // Auto-clear flag after 4 seconds
                                             setTimeout(() => {
