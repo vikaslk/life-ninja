@@ -1780,7 +1780,13 @@
                 
                 // Add to local state immediately (optimistic UI)
                 setTasks(prev => [...prev, newTask]);
-                showToast('Task created successfully');
+                
+                // V2.6.3-TOAST-SUPPRESS: Don't show toast during rapid entry (prevents focus loss)
+                if (!isCreatingTasksRef.current) {
+                    showToast('Task created successfully');
+                } else {
+                    console.log('🔇 Toast suppressed during rapid entry (prevents focus loss)');
+                }
                 
                 // V2.5.0-SYNC: Save to Supabase and get real ID
                 if (user && !isLoadingFromSupabase) {
@@ -4545,11 +4551,23 @@
                                             });
                                             newTaskTextRef.current = '';
                                             
-                                            // Keep focus
+                                            // Keep focus with multiple aggressive attempts
                                             if (inputElement) {
+                                                // Immediate focus
                                                 inputElement.focus();
+                                                
+                                                // Multiple timed attempts
+                                                setTimeout(() => inputElement.focus(), 0);
                                                 setTimeout(() => inputElement.focus(), 10);
-                                                requestAnimationFrame(() => inputElement.focus());
+                                                setTimeout(() => inputElement.focus(), 20);
+                                                setTimeout(() => inputElement.focus(), 50);
+                                                setTimeout(() => inputElement.focus(), 100);
+                                                
+                                                // Frame-based (syncs with rendering)
+                                                requestAnimationFrame(() => {
+                                                    inputElement.focus();
+                                                    requestAnimationFrame(() => inputElement.focus());
+                                                });
                                             }
                                             
                                             // Create task
@@ -4581,11 +4599,23 @@
                                             });
                                             newTaskTextRef.current = '';
                                             
-                                            // Keep focus
+                                            // Keep focus with multiple aggressive attempts
                                             if (inputElement) {
+                                                // Immediate focus
                                                 inputElement.focus();
+                                                
+                                                // Multiple timed attempts
+                                                setTimeout(() => inputElement.focus(), 0);
                                                 setTimeout(() => inputElement.focus(), 10);
-                                                requestAnimationFrame(() => inputElement.focus());
+                                                setTimeout(() => inputElement.focus(), 20);
+                                                setTimeout(() => inputElement.focus(), 50);
+                                                setTimeout(() => inputElement.focus(), 100);
+                                                
+                                                // Frame-based (syncs with rendering)
+                                                requestAnimationFrame(() => {
+                                                    inputElement.focus();
+                                                    requestAnimationFrame(() => inputElement.focus());
+                                                });
                                             }
                                             
                                             // Create task
