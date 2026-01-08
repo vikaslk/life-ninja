@@ -30,8 +30,17 @@
         body { 
             -webkit-tap-highlight-color: transparent;
             touch-action: pan-y pinch-zoom;
+            /* V2.6.3: Prevent scroll jumps during re-renders */
+            overflow-anchor: none;
         }
-        html { scroll-behavior: smooth; }
+        /* V2.6.3: Disable smooth scroll - causes issues during rapid updates */
+        html { scroll-behavior: auto; }
+        
+        /* V2.6.3: Prevent layout shifts */
+        #root {
+            min-height: 100vh;
+            contain: layout style;
+        }
         
         /* Drag and Drop Styles */
         .dragging { 
@@ -4544,6 +4553,7 @@
                                     onKeyDown={(e) => {
                                         if (e.key === 'Enter' && newTaskText.trim()) {
                                             e.preventDefault();
+                                            e.stopPropagation();
                                             const taskText = newTaskText.trim();
                                             const inputElement = newTaskInputRef.current;
                                             
@@ -4580,14 +4590,16 @@
                                             createTask({ text: taskText });
                                             
                                             // CRITICAL: Re-focus AFTER createTask causes re-render
-                                            // The above focus attempts happen BEFORE setTasks re-render
-                                            // These happen AFTER the re-render completes
-                                            if (inputElement) {
-                                                setTimeout(() => inputElement.focus(), 150);
-                                                setTimeout(() => inputElement.focus(), 200);
-                                                setTimeout(() => inputElement.focus(), 250);
-                                                setTimeout(() => inputElement.focus(), 300);
-                                            }
+                                            // Use ref inside setTimeout to get NEW element after re-render
+                                            // The ref survives re-renders, but points to new DOM element
+                                            setTimeout(() => newTaskInputRef.current?.focus(), 100);
+                                            setTimeout(() => newTaskInputRef.current?.focus(), 150);
+                                            setTimeout(() => newTaskInputRef.current?.focus(), 200);
+                                            setTimeout(() => newTaskInputRef.current?.focus(), 250);
+                                            setTimeout(() => newTaskInputRef.current?.focus(), 300);
+                                            setTimeout(() => newTaskInputRef.current?.focus(), 350);
+                                            setTimeout(() => newTaskInputRef.current?.focus(), 400);
+                                            setTimeout(() => newTaskInputRef.current?.focus(), 500);
                                             
                                             // Auto-clear flag after 4 seconds of no activity
                                             setTimeout(() => {
@@ -4597,8 +4609,9 @@
                                                     
                                                     if (wasInRapidMode) {
                                                         console.log('🔄 Exited rapid entry mode');
-                                                        showToast('Tasks synced successfully');
-                                                        setLastSyncTime(new Date());
+                                                        // V2.6.3: Don't show toast or update lastSyncTime
+                                                        // These cause screen shake and auto-scroll
+                                                        // User feedback: toast causes focus loss and screen jump
                                                     }
                                                 }
                                             }, 4000);
@@ -4645,14 +4658,16 @@
                                             createTask({ text: taskText });
                                             
                                             // CRITICAL: Re-focus AFTER createTask causes re-render
-                                            // The above focus attempts happen BEFORE setTasks re-render
-                                            // These happen AFTER the re-render completes
-                                            if (inputElement) {
-                                                setTimeout(() => inputElement.focus(), 150);
-                                                setTimeout(() => inputElement.focus(), 200);
-                                                setTimeout(() => inputElement.focus(), 250);
-                                                setTimeout(() => inputElement.focus(), 300);
-                                            }
+                                            // Use ref inside setTimeout to get NEW element after re-render
+                                            // The ref survives re-renders, but points to new DOM element
+                                            setTimeout(() => newTaskInputRef.current?.focus(), 100);
+                                            setTimeout(() => newTaskInputRef.current?.focus(), 150);
+                                            setTimeout(() => newTaskInputRef.current?.focus(), 200);
+                                            setTimeout(() => newTaskInputRef.current?.focus(), 250);
+                                            setTimeout(() => newTaskInputRef.current?.focus(), 300);
+                                            setTimeout(() => newTaskInputRef.current?.focus(), 350);
+                                            setTimeout(() => newTaskInputRef.current?.focus(), 400);
+                                            setTimeout(() => newTaskInputRef.current?.focus(), 500);
                                             
                                             // Auto-clear flag after 4 seconds
                                             setTimeout(() => {
@@ -4662,8 +4677,9 @@
                                                     
                                                     if (wasInRapidMode) {
                                                         console.log('🔄 Exited rapid entry mode');
-                                                        showToast('Tasks synced successfully');
-                                                        setLastSyncTime(new Date());
+                                                        // V2.6.3: Don't show toast or update lastSyncTime
+                                                        // These cause screen shake and auto-scroll
+                                                        // User feedback: toast causes focus loss and screen jump
                                                     }
                                                 }
                                             }, 4000);
