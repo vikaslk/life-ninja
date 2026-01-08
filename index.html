@@ -738,7 +738,10 @@
                         
                         console.log('✅ Task updated in Supabase:', data.id);
                         setSyncStatus('synced');
-                        setLastSyncTime(new Date());
+                        // V2.6.3-FOCUS: Suppress lastSyncTime update during rapid entry
+                        if (!isCreatingTasksRef.current) {
+                            setLastSyncTime(new Date());
+                        }
                         return data;
                     } else {
                         // Insert new task
@@ -755,7 +758,10 @@
                         // Don't update here - let caller handle ID update
                         
                         setSyncStatus('synced');
-                        setLastSyncTime(new Date());
+                        // V2.6.3-FOCUS: Suppress lastSyncTime update during rapid entry
+                        if (!isCreatingTasksRef.current) {
+                            setLastSyncTime(new Date());
+                        }
                         return data;
                     }
                 } catch (error) {
@@ -4576,7 +4582,14 @@
                                             // Auto-clear flag after 4 seconds of no activity
                                             setTimeout(() => {
                                                 if (Date.now() - lastTaskCreationTimeRef.current >= 4000) {
+                                                    const wasInRapidMode = isCreatingTasksRef.current;
                                                     isCreatingTasksRef.current = false;
+                                                    
+                                                    if (wasInRapidMode) {
+                                                        console.log('🔄 Exited rapid entry mode');
+                                                        showToast('Tasks synced successfully');
+                                                        setLastSyncTime(new Date());
+                                                    }
                                                 }
                                             }, 4000);
                                         }
@@ -4624,7 +4637,14 @@
                                             // Auto-clear flag after 4 seconds
                                             setTimeout(() => {
                                                 if (Date.now() - lastTaskCreationTimeRef.current >= 4000) {
+                                                    const wasInRapidMode = isCreatingTasksRef.current;
                                                     isCreatingTasksRef.current = false;
+                                                    
+                                                    if (wasInRapidMode) {
+                                                        console.log('🔄 Exited rapid entry mode');
+                                                        showToast('Tasks synced successfully');
+                                                        setLastSyncTime(new Date());
+                                                    }
                                                 }
                                             }, 4000);
                                         }
