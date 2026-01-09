@@ -1796,11 +1796,13 @@
                 // Add to local state immediately (optimistic UI)
                 setTasks(prev => [...prev, newTask]);
                 
-                // V2.6.3-TOAST-SUPPRESS: Don't show toast during rapid entry (prevents focus loss)
-                if (!isCreatingTasksRef.current) {
+                // V2.6.3-TOAST: Show toast for first task or after pause
+                // Only suppress for rapid subsequent tasks
+                const isAlreadyInRapidMode = isCreatingTasksRef.current;
+                if (!isAlreadyInRapidMode) {
                     showToast('Task created successfully');
                 } else {
-                    console.log('🔇 Toast suppressed during rapid entry (prevents focus loss)');
+                    console.log('🔇 Toast suppressed - rapid entry in progress');
                 }
                 
                 // V2.5.0-SYNC: Save to Supabase and get real ID
@@ -4272,7 +4274,6 @@
                 useEffect(() => {
                     if (isCreatingTasksRef.current && newTaskInputRef.current) {
                         // Tasks changed, we're in rapid entry mode, refocus NOW
-                        console.log('🔄 Tasks changed during rapid entry - refocusing input');
                         newTaskInputRef.current.focus();
                         
                         // Multiple attempts to fight any focus stealing
@@ -4558,8 +4559,6 @@
                                     type="text"
                                     placeholder="Add a new task..."
                                     value={newTaskText}
-                                    onFocus={() => console.log('✅ Input FOCUSED')}
-                                    onBlur={() => console.log('❌ Input BLURRED')}
                                     onChange={(e) => {
                                         setNewTaskText(e.target.value);
                                         // Extend rapid entry window while typing
