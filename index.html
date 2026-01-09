@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Life Ninja V2.5.0-SYNC (Email/Password Auth)</title>
+    <title>Life Ninja V2.6.3-SYNC (Email/Password Auth)</title>
     <script src="https://cdn.tailwindcss.com"></script>
     
     <script crossorigin src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
@@ -4268,6 +4268,21 @@
                 const searchTimeoutRef = useRef(null);
                 const newTaskInputRef = useRef(null);
                 
+                // V2.6.3-AGGRESSIVE: Refocus input whenever tasks change during rapid entry
+                useEffect(() => {
+                    if (isCreatingTasksRef.current && newTaskInputRef.current) {
+                        // Tasks changed, we're in rapid entry mode, refocus NOW
+                        console.log('🔄 Tasks changed during rapid entry - refocusing input');
+                        newTaskInputRef.current.focus();
+                        
+                        // Multiple attempts to fight any focus stealing
+                        setTimeout(() => newTaskInputRef.current?.focus(), 0);
+                        setTimeout(() => newTaskInputRef.current?.focus(), 10);
+                        setTimeout(() => newTaskInputRef.current?.focus(), 50);
+                        setTimeout(() => newTaskInputRef.current?.focus(), 100);
+                    }
+                }, [tasks.length]); // Re-run when tasks array length changes
+                
                 // Save to ref before unmount
                 useEffect(() => {
                     return () => {
@@ -4543,6 +4558,8 @@
                                     type="text"
                                     placeholder="Add a new task..."
                                     value={newTaskText}
+                                    onFocus={() => console.log('✅ Input FOCUSED')}
+                                    onBlur={() => console.log('❌ Input BLURRED')}
                                     onChange={(e) => {
                                         setNewTaskText(e.target.value);
                                         // Extend rapid entry window while typing
@@ -7170,7 +7187,7 @@
                             </div>
                             
                             <div className="text-center text-sm text-gray-600">
-                                <p className="mb-2">🔒 Secure • 100% Free • No Google Required</p>
+                                <p className="mb-2">🔒 Secure • 100% Free • Feedback: vikaslk@hotmail.com</p>
                                 {authMode === 'signup' && (
                                     <p className="text-xs text-gray-500">You'll receive a verification email after signup</p>
                                 )}
