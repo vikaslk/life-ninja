@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Life Ninja V2.6.3 (Email/Password Auth)</title>
+    <title>Life Ninja V2.7.0 (Email/Password Auth)</title>
     <script src="https://cdn.tailwindcss.com"></script>
     
     <script crossorigin src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
@@ -192,9 +192,9 @@
             return 'Desktop';
         };
         
-        console.log('🖥️ Device detected:', getDeviceId());
+        console.log('ðŸ–¥ï¸ Device detected:', getDeviceId());
         
-        console.log('✅ Supabase ready');
+        console.log('âœ… Supabase ready');
 
         // ============================================================================
         // UTILITY FUNCTIONS
@@ -281,7 +281,10 @@
                 basePoints = 1;
             }
             
-            return Math.round(basePoints);
+            // V2.7.0: Add priority rating bonus (0-10 points)
+            const priorityBonus = task.priority_rating || 5; // Default to 5 if not set
+            
+            return Math.round(basePoints + priorityBonus);
         };
 
         // Recurring task helper
@@ -360,7 +363,7 @@
           
           // Handle invalid dates
           if (isNaN(startDate.getTime()) || isNaN(endDate.getTime())) {
-            console.warn('⚠️ Invalid date in task:', task.id, task.text);
+            console.warn('âš ï¸ Invalid date in task:', task.id, task.text);
             return [];
           }
           
@@ -407,7 +410,7 @@
             
             return `${String(endHours).padStart(2, '0')}:${String(endMins).padStart(2, '0')}`;
           } catch (error) {
-            console.warn('⚠️ Error calculating end time:', task.id, error);
+            console.warn('âš ï¸ Error calculating end time:', task.id, error);
             return null;
           }
         };
@@ -462,7 +465,7 @@
             
             return slots;
           } catch (error) {
-            console.warn('⚠️ Error calculating time slots:', task.id, error);
+            console.warn('âš ï¸ Error calculating time slots:', task.id, error);
             return [];
           }
         };
@@ -479,7 +482,7 @@
             const [hours, minutes] = task.timeSlot.split(':').map(Number);
             return hours * 60 + minutes;
           } catch (error) {
-            console.warn('⚠️ Error parsing start time:', task.id, error);
+            console.warn('âš ï¸ Error parsing start time:', task.id, error);
             return null;
           }
         };
@@ -569,10 +572,10 @@
                         password: authPassword,
                     });
                     if (error) throw error;
-                    console.log('✅ Signup successful, check email for verification');
-                    setAuthError('✅ Check your email to verify your account!');
+                    console.log('âœ… Signup successful, check email for verification');
+                    setAuthError('âœ… Check your email to verify your account!');
                 } catch (error) {
-                    console.error('❌ Signup error:', error);
+                    console.error('âŒ Signup error:', error);
                     setAuthError(error.message);
                 } finally {
                     setAuthLoading(false);
@@ -588,9 +591,9 @@
                         password: authPassword,
                     });
                     if (error) throw error;
-                    console.log('✅ Login successful');
+                    console.log('âœ… Login successful');
                 } catch (error) {
-                    console.error('❌ Login error:', error);
+                    console.error('âŒ Login error:', error);
                     setAuthError(error.message);
                 } finally {
                     setAuthLoading(false);
@@ -599,19 +602,19 @@
             
             const handleLogout = async () => {
                 try {
-                    console.log('🚪 Logging out...');
+                    console.log('ðŸšª Logging out...');
                     await supabase.auth.signOut();
                     
                     // Clear all sync flags
                     localStorage.removeItem('ln_has_synced_to_supabase');
                     localStorage.removeItem('ln_has_synced_events_to_supabase');
                     
-                    console.log('✅ Logged out successfully');
+                    console.log('âœ… Logged out successfully');
                     
                     // Force full page reload (more aggressive than window.location.reload())
                     window.location.href = window.location.href;
                 } catch (error) {
-                    console.error('❌ Logout error:', error);
+                    console.error('âŒ Logout error:', error);
                     // Force reload anyway
                     window.location.href = window.location.href;
                 }
@@ -635,7 +638,7 @@
                     if (hasAlreadySynced) {
                         setHasSyncedOnce(true);
                         setNeedsMigration(false); // Explicitly set to false
-                        console.log('✅ Already synced - skipping migration check');
+                        console.log('âœ… Already synced - skipping migration check');
                         return;
                     }
                     
@@ -659,15 +662,15 @@
                         // If no tasks in Supabase but have local tasks, need migration
                         if (count === 0) {
                             setNeedsMigration(true);
-                            console.log('📤 Migration needed:', localTasks.length, 'tasks in localStorage');
+                            console.log('ðŸ“¤ Migration needed:', localTasks.length, 'tasks in localStorage');
                         } else {
                             // Has tasks in Supabase - mark as already synced
                             localStorage.setItem('ln_has_synced_to_supabase', 'true');
                             setHasSyncedOnce(true);
-                            console.log('✅ Supabase has', count, 'tasks - no migration needed');
+                            console.log('âœ… Supabase has', count, 'tasks - no migration needed');
                         }
                     } catch (error) {
-                        console.error('❌ Error checking migration:', error);
+                        console.error('âŒ Error checking migration:', error);
                     }
                 };
                 
@@ -689,7 +692,7 @@
                 if (!timeSlot) return null;
                 // If HH:mm:ss format ending in :00, strip seconds
                 if (/^\d{2}:\d{2}:00$/.test(timeSlot)) {
-                    return timeSlot.substring(0, 5); // "16:30:00" → "16:30"
+                    return timeSlot.substring(0, 5); // "16:30:00" â†’ "16:30"
                 }
                 // Otherwise return as-is
                 return timeSlot;
@@ -747,7 +750,7 @@
                         
                         if (error) throw error;
                         
-                        console.log('✅ Task updated in Supabase:', data.id);
+                        console.log('âœ… Task updated in Supabase:', data.id);
                         setSyncStatus('synced');
                         // V2.6.3-FOCUS: Suppress lastSyncTime update during rapid entry
                         if (!isCreatingTasksRef.current) {
@@ -764,7 +767,7 @@
                         
                         if (error) throw error;
                         
-                        console.log('✅ Task saved to Supabase:', data.id);
+                        console.log('âœ… Task saved to Supabase:', data.id);
                         
                         // Don't update here - let caller handle ID update
                         
@@ -776,7 +779,7 @@
                         return data;
                     }
                 } catch (error) {
-                    console.error('❌ Error saving to Supabase:', error);
+                    console.error('âŒ Error saving to Supabase:', error);
                     setSyncStatus('error');
                     return null;
                 }
@@ -797,11 +800,11 @@
                     
                     if (error) throw error;
                     
-                    console.log('✅ Task deleted from Supabase:', task.supabaseId);
+                    console.log('âœ… Task deleted from Supabase:', task.supabaseId);
                     setSyncStatus('synced');
                     setLastSyncTime(new Date());
                 } catch (error) {
-                    console.error('❌ Error deleting from Supabase:', error);
+                    console.error('âŒ Error deleting from Supabase:', error);
                     setSyncStatus('error');
                 }
             };
@@ -822,11 +825,11 @@
                     
                     if (error) throw error;
                     
-                    console.log('✅ Loaded tasks from Supabase:', data.length);
+                    console.log('âœ… Loaded tasks from Supabase:', data.length);
                     
                     // If migration hasn't happened yet AND we have local tasks, don't overwrite
                     if (needsMigration) {
-                        console.log('⚠️ Migration pending, keeping local tasks');
+                        console.log('âš ï¸ Migration pending, keeping local tasks');
                         setIsLoadingFromSupabase(false);
                         setSyncStatus('idle');
                         return;
@@ -886,7 +889,7 @@
                     const hasManualOrder = sortedTasks.some(t => t.manualOrder !== null && t.manualOrder !== undefined);
                     if (hasManualOrder) {
                         setIsManualOrder(true);
-                        console.log('✅ Manual order detected, enabled manual order mode');
+                        console.log('âœ… Manual order detected, enabled manual order mode');
                     }
                     
                     // Mark that we've synced successfully
@@ -897,10 +900,10 @@
                     setLastSyncTime(new Date());
                     setIsLoadingFromSupabase(false); // Done loading!
                     
-                    console.log('✅ Sync complete, Supabase is source of truth');
+                    console.log('âœ… Sync complete, Supabase is source of truth');
                     
                 } catch (error) {
-                    console.error('❌ Error loading from Supabase:', error);
+                    console.error('âŒ Error loading from Supabase:', error);
                     setSyncStatus('error');
                     setIsLoadingFromSupabase(false);
                 }
@@ -913,19 +916,19 @@
                 try {
                     setIsLoadingFromSupabase(true); // Prevent duplicate saves during migration
                     setSyncStatus('syncing');
-                    console.log('📤 Starting migration...');
+                    console.log('ðŸ“¤ Starting migration...');
                     
                     const localTasks = JSON.parse(localStorage.getItem('ln_tasks') || '[]');
                     
                     if (localTasks.length === 0) {
-                        console.log('✅ No tasks to migrate');
+                        console.log('âœ… No tasks to migrate');
                         setNeedsMigration(false);
                         setSyncStatus('synced');
                         setIsLoadingFromSupabase(false);
                         return;
                     }
                     
-                    console.log('📤 Migrating', localTasks.length, 'tasks...');
+                    console.log('ðŸ“¤ Migrating', localTasks.length, 'tasks...');
                     
                     // Prepare all tasks for batch insert
                     const tasksToInsert = localTasks.map(task => ({
@@ -957,7 +960,7 @@
                     
                     if (error) throw error;
                     
-                    console.log('✅ Migration complete!', data.length, 'tasks uploaded');
+                    console.log('âœ… Migration complete!', data.length, 'tasks uploaded');
                     
                     // Mark migration complete
                     setNeedsMigration(false);
@@ -967,13 +970,13 @@
                     // Now load from Supabase to get proper IDs
                     await loadTasksFromSupabase();
                     
-                    alert(`✅ Successfully synced ${data.length} tasks to cloud!`);
+                    alert(`âœ… Successfully synced ${data.length} tasks to cloud!`);
                     
                 } catch (error) {
-                    console.error('❌ Migration error:', error);
+                    console.error('âŒ Migration error:', error);
                     setSyncStatus('error');
                     setIsLoadingFromSupabase(false);
-                    alert('❌ Migration failed: ' + error.message);
+                    alert('âŒ Migration failed: ' + error.message);
                 }
             };
             
@@ -990,7 +993,7 @@
             useEffect(() => {
                 if (!user) return;
                 
-                console.log('🔔 Setting up real-time subscriptions...');
+                console.log('ðŸ”” Setting up real-time subscriptions...');
                 
                 // Subscribe to tasks table changes
                 const tasksSubscription = supabase
@@ -1004,22 +1007,22 @@
                             filter: `user_id=eq.${user.id}`
                         },
                         (payload) => {
-                            console.log('📥 Tasks change detected:', payload.eventType);
+                            console.log('ðŸ“¥ Tasks change detected:', payload.eventType);
                             
                             if (payload.eventType === 'INSERT') {
-                                console.log('🔍 INSERT EVENT RECEIVED');
-                                console.log('🔍 payload.new.text:', payload.new.text);
+                                console.log('ðŸ” INSERT EVENT RECEIVED');
+                                console.log('ðŸ” payload.new.text:', payload.new.text);
                                 
                                 // V2.6.3-FLAG: Check if user is in rapid task entry mode
                                 const timeSinceLastCreation = Date.now() - lastTaskCreationTimeRef.current;
                                 const isRapidEntry = isCreatingTasksRef.current && timeSinceLastCreation < 4000;
                                 
-                                console.log('🔍 isCreatingTasksRef:', isCreatingTasksRef.current);
-                                console.log('🔍 timeSinceLastCreation:', timeSinceLastCreation, 'ms');
-                                console.log('🔍 isRapidEntry:', isRapidEntry);
+                                console.log('ðŸ” isCreatingTasksRef:', isCreatingTasksRef.current);
+                                console.log('ðŸ” timeSinceLastCreation:', timeSinceLastCreation, 'ms');
+                                console.log('ðŸ” isRapidEntry:', isRapidEntry);
                                 
                                 if (isRapidEntry) {
-                                    console.log('⏭️ ✅ SKIPPING INSERT - user is in rapid task entry mode');
+                                    console.log('â­ï¸ âœ… SKIPPING INSERT - user is in rapid task entry mode');
                                     return;
                                 }
                                 
@@ -1027,22 +1030,22 @@
                                 const newTaskInput = document.querySelector('input[placeholder="Add a new task..."]');
                                 const inputHasText = newTaskInput && newTaskInput.value && newTaskInput.value.trim().length > 0;
                                 
-                                console.log('🔍 newTaskInput.value:', newTaskInput?.value);
-                                console.log('🔍 inputHasText:', inputHasText);
+                                console.log('ðŸ” newTaskInput.value:', newTaskInput?.value);
+                                console.log('ðŸ” inputHasText:', inputHasText);
                                 
                                 if (inputHasText) {
-                                    console.log('⏭️ ✅ SKIPPING INSERT - input has text');
+                                    console.log('â­ï¸ âœ… SKIPPING INSERT - input has text');
                                     return;
                                 }
                                 
                                 // Fallback: Check if ANY input is focused
                                 const activeElement = document.activeElement;
                                 if (activeElement && (activeElement.tagName === 'INPUT' || activeElement.tagName === 'TEXTAREA')) {
-                                    console.log('⏭️ ✅ SKIPPING INSERT - input is focused');
+                                    console.log('â­ï¸ âœ… SKIPPING INSERT - input is focused');
                                     return;
                                 }
                                 
-                                console.log('🔍 ❌ NOT SKIPPING - proceeding with INSERT');
+                                console.log('ðŸ” âŒ NOT SKIPPING - proceeding with INSERT');
                                 
                                 const newTask = {
                                     id: payload.new.id,
@@ -1069,15 +1072,15 @@
                                 setTasks(prev => {
                                     const exists = prev.some(t => t.id === newTask.id);
                                     if (exists) {
-                                        console.log('🔍 Task already exists, returning prev');
+                                        console.log('ðŸ” Task already exists, returning prev');
                                         return prev;
                                     }
-                                    console.log('✨ Adding new task from real-time:', newTask.text);
-                                    console.log('🔍 About to call setTasks - this will trigger re-render');
+                                    console.log('âœ¨ Adding new task from real-time:', newTask.text);
+                                    console.log('ðŸ” About to call setTasks - this will trigger re-render');
                                     return [...prev, newTask];
                                 });
                                 
-                                console.log('🔍 INSERT handler complete');
+                                console.log('ðŸ” INSERT handler complete');
                             }
                             
                             if (payload.eventType === 'UPDATE') {
@@ -1085,7 +1088,7 @@
                                 // This prevents the "jumping task" bug where tasks reposition randomly
                                 const isManualOrderUpdate = payload.new.manual_order !== payload.old.manual_order;
                                 if (isReorderingRef.current && isManualOrderUpdate) {
-                                    console.log('⏸️ Skipping manual order update during reorder');
+                                    console.log('â¸ï¸ Skipping manual order update during reorder');
                                     return;
                                 }
                                 
@@ -1114,14 +1117,14 @@
                                 // V2.6.3-TYPING-FIX: Skip update if user is actively editing ANY field
                                 // Check 1: Is user editing this specific task?
                                 if (editingTask === updatedTask.id) {
-                                    console.log('⏭️ Skipping real-time update - task is being edited:', updatedTask.text);
+                                    console.log('â­ï¸ Skipping real-time update - task is being edited:', updatedTask.text);
                                     return;
                                 }
                                 
                                 // Check 2: Is user typing in ANY input field?
                                 const activeElement = document.activeElement;
                                 if (activeElement && (activeElement.tagName === 'INPUT' || activeElement.tagName === 'TEXTAREA')) {
-                                    console.log('⏭️ Skipping real-time update - user is typing in input field');
+                                    console.log('â­ï¸ Skipping real-time update - user is typing in input field');
                                     return;
                                 }
                                 
@@ -1130,7 +1133,7 @@
                                 setTasks(prev => {
                                     const index = prev.findIndex(t => t.id === updatedTask.id);
                                     if (index === -1) return prev;
-                                    console.log('🔄 Updating task from real-time:', updatedTask.text);
+                                    console.log('ðŸ”„ Updating task from real-time:', updatedTask.text);
                                     const newTasks = [...prev];
                                     // Merge instead of replace (preserves local manualOrder!)
                                     newTasks[index] = { ...newTasks[index], ...updatedTask };
@@ -1142,14 +1145,14 @@
                             if (payload.eventType === 'DELETE') {
                                 const deletedId = payload.old.id;
                                 setTasks(prev => {
-                                    console.log('🗑️ Deleting task from real-time:', deletedId);
+                                    console.log('ðŸ—‘ï¸ Deleting task from real-time:', deletedId);
                                     return prev.filter(t => t.id !== deletedId);
                                 });
                             }
                         }
                     )
                     .subscribe((status) => {
-                        console.log('📡 Tasks subscription status:', status);
+                        console.log('ðŸ“¡ Tasks subscription status:', status);
                     });
                 
                 // Subscribe to events table changes
@@ -1164,7 +1167,7 @@
                             filter: `user_id=eq.${user.id}`
                         },
                         (payload) => {
-                            console.log('📥 Events change detected:', payload.eventType);
+                            console.log('ðŸ“¥ Events change detected:', payload.eventType);
                             
                             if (payload.eventType === 'INSERT') {
                                 const newEvent = {
@@ -1190,7 +1193,7 @@
                                 setEvents(prev => {
                                     const exists = prev.some(e => e.id === newEvent.id);
                                     if (exists) return prev;
-                                    console.log('✨ Adding new event from real-time:', newEvent.text);
+                                    console.log('âœ¨ Adding new event from real-time:', newEvent.text);
                                     return [...prev, newEvent];
                                 });
                             }
@@ -1219,7 +1222,7 @@
                                 setEvents(prev => {
                                     const index = prev.findIndex(e => e.id === updatedEvent.id);
                                     if (index === -1) return prev;
-                                    console.log('🔄 Updating event from real-time:', updatedEvent.text);
+                                    console.log('ðŸ”„ Updating event from real-time:', updatedEvent.text);
                                     const newEvents = [...prev];
                                     newEvents[index] = updatedEvent;
                                     return newEvents;
@@ -1229,19 +1232,19 @@
                             if (payload.eventType === 'DELETE') {
                                 const deletedId = payload.old.id;
                                 setEvents(prev => {
-                                    console.log('🗑️ Deleting event from real-time:', deletedId);
+                                    console.log('ðŸ—‘ï¸ Deleting event from real-time:', deletedId);
                                     return prev.filter(e => e.id !== deletedId);
                                 });
                             }
                         }
                     )
                     .subscribe((status) => {
-                        console.log('📡 Events subscription status:', status);
+                        console.log('ðŸ“¡ Events subscription status:', status);
                     });
                 
                 // Cleanup subscriptions on unmount
                 return () => {
-                    console.log('🔌 Unsubscribing from real-time channels');
+                    console.log('ðŸ”Œ Unsubscribing from real-time channels');
                     tasksSubscription.unsubscribe();
                     eventsSubscription.unsubscribe();
                 };
@@ -1287,7 +1290,7 @@
                         
                         if (error) throw error;
                         
-                        console.log('✅ Event updated in Supabase:', data.id);
+                        console.log('âœ… Event updated in Supabase:', data.id);
                         setSyncStatus('synced');
                         setLastSyncTime(new Date());
                         return data;
@@ -1301,7 +1304,7 @@
                         
                         if (error) throw error;
                         
-                        console.log('✅ Event saved to Supabase:', data.id);
+                        console.log('âœ… Event saved to Supabase:', data.id);
                         
                         // Don't update here - let caller handle ID update
                         
@@ -1310,7 +1313,7 @@
                         return data;
                     }
                 } catch (error) {
-                    console.error('❌ Error saving event to Supabase:', error);
+                    console.error('âŒ Error saving event to Supabase:', error);
                     setSyncStatus('error');
                     return null;
                 }
@@ -1331,11 +1334,11 @@
                     
                     if (error) throw error;
                     
-                    console.log('✅ Event deleted from Supabase:', event.supabaseId);
+                    console.log('âœ… Event deleted from Supabase:', event.supabaseId);
                     setSyncStatus('synced');
                     setLastSyncTime(new Date());
                 } catch (error) {
-                    console.error('❌ Error deleting event from Supabase:', error);
+                    console.error('âŒ Error deleting event from Supabase:', error);
                     setSyncStatus('error');
                 }
             };
@@ -1355,7 +1358,7 @@
                     
                     if (error) throw error;
                     
-                    console.log('✅ Loaded events from Supabase:', data.length);
+                    console.log('âœ… Loaded events from Supabase:', data.length);
                     
                     // Convert Supabase format to app format
                     const supabaseEvents = data.map(e => ({
@@ -1387,10 +1390,10 @@
                     localStorage.setItem('ln_has_synced_events_to_supabase', 'true');
                     setHasEventsSynced(true);
                     
-                    console.log('✅ Events sync complete');
+                    console.log('âœ… Events sync complete');
                     
                 } catch (error) {
-                    console.error('❌ Error loading events from Supabase:', error);
+                    console.error('âŒ Error loading events from Supabase:', error);
                     setIsLoadingFromSupabase(false);
                 }
             };
@@ -1403,11 +1406,11 @@
                     const localEvents = JSON.parse(localStorage.getItem('ln_events') || '[]');
                     
                     if (localEvents.length === 0) {
-                        console.log('✅ No events to migrate');
+                        console.log('âœ… No events to migrate');
                         return;
                     }
                     
-                    console.log('📤 Migrating', localEvents.length, 'events...');
+                    console.log('ðŸ“¤ Migrating', localEvents.length, 'events...');
                     
                     const eventsToInsert = localEvents.map(event => ({
                         user_id: user.id,
@@ -1433,7 +1436,7 @@
                     
                     if (error) throw error;
                     
-                    console.log('✅ Events migration complete!', data.length, 'events uploaded');
+                    console.log('âœ… Events migration complete!', data.length, 'events uploaded');
                     
                     // Mark migration complete
                     localStorage.setItem('ln_has_synced_events_to_supabase', 'true');
@@ -1443,7 +1446,7 @@
                     await loadEventsFromSupabase();
                     
                 } catch (error) {
-                    console.error('❌ Events migration error:', error);
+                    console.error('âŒ Events migration error:', error);
                 }
             };
             
@@ -1467,7 +1470,7 @@
                     
                     if (localEvents.length > 0) {
                         // Migrate localStorage events
-                        console.log('📤 Found', localEvents.length, 'local events to migrate');
+                        console.log('ðŸ“¤ Found', localEvents.length, 'local events to migrate');
                         await migrateEventsToSupabase();
                     } else {
                         // No local events, just load from Supabase
@@ -1546,7 +1549,7 @@
             React.useEffect(() => {
                 const hasNoProjectPseudo = projects.some(p => p.isNoProject);
                 if (!hasNoProjectPseudo) {
-                    console.log('🔧 MIGRATION: Adding "No Project" pseudo-project');
+                    console.log('ðŸ”§ MIGRATION: Adding "No Project" pseudo-project');
                     setProjects(prev => [
                         {
                             id: 'no-project',
@@ -1777,6 +1780,7 @@
                     status: 'not-started',
                     taskType: 'consistency',
                     priority: 'medium',
+                    priority_rating: 5, // V2.7.0: Priority rating 0-10 scale
                     persona: personas[0],
                     project: null,
                     scheduledDate: selectedDate,
@@ -1807,7 +1811,7 @@
                 if (!wasInRapidMode) {
                     showToast('Task created successfully');
                 } else {
-                    console.log('🔇 Toast suppressed - rapid entry in progress');
+                    console.log('ðŸ”‡ Toast suppressed - rapid entry in progress');
                 }
                 
                 // V2.5.0-SYNC: Save to Supabase and get real ID
@@ -1823,7 +1827,7 @@
                             ));
                         }
                     } catch (error) {
-                        console.error('❌ Error saving new task:', error);
+                        console.error('âŒ Error saving new task:', error);
                     }
                 }
                 
@@ -1845,7 +1849,7 @@
                     if (updatedTask && user && updatedTask.supabaseId) {
                         saveTaskToSupabase(updatedTask, { excludeManualOrder: true });
                     } else if (updatedTask && !updatedTask.supabaseId) {
-                        console.log('⏭️ Skipping save: Task not yet saved to Supabase', taskId);
+                        console.log('â­ï¸ Skipping save: Task not yet saved to Supabase', taskId);
                     }
                     
                     return updated;
@@ -1859,7 +1863,7 @@
                 
                 if (currentIndex <= 0) return; // Already at top
                 
-                console.log('⬆️ Moving task up:', visibleTasks[currentIndex].text);
+                console.log('â¬†ï¸ Moving task up:', visibleTasks[currentIndex].text);
                 
                 // Swap with task above
                 [visibleTasks[currentIndex - 1], visibleTasks[currentIndex]] = 
@@ -1904,7 +1908,7 @@
                                     .eq('user_id', user.id);
                             }
                         } catch (error) {
-                            console.error('❌ Batch save error:', error);
+                            console.error('âŒ Batch save error:', error);
                         }
                     };
                     
@@ -1921,7 +1925,7 @@
                 
                 if (currentIndex < 0 || currentIndex >= visibleTasks.length - 1) return; // Already at bottom
                 
-                console.log('⬇️ Moving task down:', visibleTasks[currentIndex].text);
+                console.log('â¬‡ï¸ Moving task down:', visibleTasks[currentIndex].text);
                 
                 // Swap with task below
                 [visibleTasks[currentIndex], visibleTasks[currentIndex + 1]] = 
@@ -1966,7 +1970,7 @@
                                     .eq('user_id', user.id);
                             }
                         } catch (error) {
-                            console.error('❌ Batch save error:', error);
+                            console.error('âŒ Batch save error:', error);
                         }
                     };
                     
@@ -2034,13 +2038,13 @@
             // V2.5.13-STABLE: Push current order to cloud
             const pushOrderToCloud = async () => {
                 if (!user) {
-                    showToast('❌ Please log in first', true);
+                    showToast('âŒ Please log in first', true);
                     return;
                 }
                 
-                console.log('📤 PUSH: Starting push order to cloud');
-                console.log('📤 PUSH: Current device:', getDeviceId());
-                console.log('📤 PUSH: Total tasks:', tasks.length);
+                console.log('ðŸ“¤ PUSH: Starting push order to cloud');
+                console.log('ðŸ“¤ PUSH: Current device:', getDeviceId());
+                console.log('ðŸ“¤ PUSH: Total tasks:', tasks.length);
                 
                 try {
                     setSyncStatus('syncing');
@@ -2049,11 +2053,11 @@
                     // Get all tasks that have manual order
                     const tasksWithOrder = tasks.filter(t => t.manualOrder !== null && t.manualOrder !== undefined && t.supabaseId);
                     
-                    console.log('📤 PUSH: Tasks with order:', tasksWithOrder.length);
-                    console.log('📤 PUSH: Manual orders:', tasksWithOrder.map(t => ({ text: t.text.substring(0, 20), order: t.manualOrder })));
+                    console.log('ðŸ“¤ PUSH: Tasks with order:', tasksWithOrder.length);
+                    console.log('ðŸ“¤ PUSH: Manual orders:', tasksWithOrder.map(t => ({ text: t.text.substring(0, 20), order: t.manualOrder })));
                     
                     if (tasksWithOrder.length === 0) {
-                        showToast('ℹ️ No order to push', false);
+                        showToast('â„¹ï¸ No order to push', false);
                         setSyncStatus('synced');
                         setIsLoadingFromSupabase(false);
                         return;
@@ -2063,7 +2067,7 @@
                     const deviceId = getDeviceId();
                     const timestamp = new Date().toISOString();
                     
-                    console.log(`📤 PUSH: Pushing order for ${tasksWithOrder.length} tasks from ${deviceId}`);
+                    console.log(`ðŸ“¤ PUSH: Pushing order for ${tasksWithOrder.length} tasks from ${deviceId}`);
                     
                     const updates = tasksWithOrder.map(task => ({
                         id: task.supabaseId,
@@ -2085,20 +2089,20 @@
                             .eq('user_id', user.id);
                         
                         if (error) {
-                            console.error('📤 PUSH: Error updating task', update.id, error);
+                            console.error('ðŸ“¤ PUSH: Error updating task', update.id, error);
                             throw error;
                         }
                         return update.id;
                     }));
                     
-                    console.log(`✅ PUSH: Successfully pushed ${results.length} tasks`);
-                    showToast(`✅ Order pushed to cloud from ${deviceId}!`);
+                    console.log(`âœ… PUSH: Successfully pushed ${results.length} tasks`);
+                    showToast(`âœ… Order pushed to cloud from ${deviceId}!`);
                     setSyncStatus('synced');
                     setLastSyncTime(new Date());
                     
                 } catch (error) {
-                    console.error('❌ PUSH: Failed:', error);
-                    showToast('❌ Failed to push order', true);
+                    console.error('âŒ PUSH: Failed:', error);
+                    showToast('âŒ Failed to push order', true);
                     setSyncStatus('error');
                 } finally {
                     setIsLoadingFromSupabase(false);
@@ -2108,12 +2112,12 @@
             // V2.5.13-STABLE: Pull order from cloud
             const pullOrderFromCloud = async () => {
                 if (!user) {
-                    showToast('❌ Please log in first', true);
+                    showToast('âŒ Please log in first', true);
                     return;
                 }
                 
-                console.log('📥 PULL: Starting pull order from cloud');
-                console.log('📥 PULL: Current device:', getDeviceId());
+                console.log('ðŸ“¥ PULL: Starting pull order from cloud');
+                console.log('ðŸ“¥ PULL: Current device:', getDeviceId());
                 
                 try {
                     setSyncStatus('syncing');
@@ -2129,29 +2133,29 @@
                     
                     if (error) throw error;
                     
-                    console.log('📥 PULL: Retrieved', data?.length || 0, 'tasks from cloud');
+                    console.log('ðŸ“¥ PULL: Retrieved', data?.length || 0, 'tasks from cloud');
                     
                     if (!data || data.length === 0) {
-                        showToast('ℹ️ No order to pull', false);
+                        showToast('â„¹ï¸ No order to pull', false);
                         setSyncStatus('synced');
                         setIsLoadingFromSupabase(false);
                         return;
                     }
                     
-                    console.log('📥 PULL: Cloud orders:', data.map(t => ({ id: t.id, order: t.manual_order, device: t.last_ordered_device })));
+                    console.log('ðŸ“¥ PULL: Cloud orders:', data.map(t => ({ id: t.id, order: t.manual_order, device: t.last_ordered_device })));
                     
                     // Update local tasks with Supabase manual_order
                     setTasks(prev => {
                         const updated = prev.map(task => {
                             const supabaseTask = data.find(t => t.id === task.supabaseId);
                             if (supabaseTask && supabaseTask.manual_order !== null) {
-                                console.log(`📥 PULL: Updating task ${task.text.substring(0, 20)} order: ${task.manualOrder} → ${supabaseTask.manual_order}`);
+                                console.log(`ðŸ“¥ PULL: Updating task ${task.text.substring(0, 20)} order: ${task.manualOrder} â†’ ${supabaseTask.manual_order}`);
                                 return { ...task, manualOrder: supabaseTask.manual_order };
                             }
                             return task;
                         });
                         
-                        console.log('📥 PULL: Final local orders:', updated.filter(t => t.manualOrder !== null).map(t => ({ text: t.text.substring(0, 20), order: t.manualOrder })));
+                        console.log('ðŸ“¥ PULL: Final local orders:', updated.filter(t => t.manualOrder !== null).map(t => ({ text: t.text.substring(0, 20), order: t.manualOrder })));
                         return updated;
                     });
                     
@@ -2167,14 +2171,14 @@
                     
                     const sourceDevice = latestOrder?.last_ordered_device || 'other device';
                     
-                    console.log(`✅ PULL: Successfully pulled order from ${sourceDevice}`);
-                    showToast(`✅ Order pulled from ${sourceDevice}!`);
+                    console.log(`âœ… PULL: Successfully pulled order from ${sourceDevice}`);
+                    showToast(`âœ… Order pulled from ${sourceDevice}!`);
                     setSyncStatus('synced');
                     setLastSyncTime(new Date());
                     
                 } catch (error) {
-                    console.error('❌ PULL: Failed:', error);
-                    showToast('❌ Failed to pull order', true);
+                    console.error('âŒ PULL: Failed:', error);
+                    showToast('âŒ Failed to pull order', true);
                     setSyncStatus('error');
                 } finally {
                     setIsLoadingFromSupabase(false);
@@ -2388,47 +2392,47 @@
             // Comprehensive status icon library
             const STATUS_ICON_LIBRARY = {
                 // Default statuses
-                'not-started': { icon: '○', color: 'text-gray-400', label: 'Not Started' },
-                'in-progress': { icon: '▶', color: 'text-yellow-600', label: 'In Progress' },
-                'completed': { icon: '✓', color: 'text-green-600', label: 'Completed' },
+                'not-started': { icon: 'â—‹', color: 'text-gray-400', label: 'Not Started' },
+                'in-progress': { icon: 'â–¶', color: 'text-yellow-600', label: 'In Progress' },
+                'completed': { icon: 'âœ“', color: 'text-green-600', label: 'Completed' },
                 
                 // Common workflow statuses
-                'to-do': { icon: '□', color: 'text-blue-500', label: 'To Do' },
-                'done': { icon: '✓', color: 'text-green-600', label: 'Done' },
-                'in-review': { icon: '👀', color: 'text-blue-600', label: 'In Review' },
-                'reviewing': { icon: '👀', color: 'text-blue-600', label: 'Reviewing' },
+                'to-do': { icon: 'â–¡', color: 'text-blue-500', label: 'To Do' },
+                'done': { icon: 'âœ“', color: 'text-green-600', label: 'Done' },
+                'in-review': { icon: 'ðŸ‘€', color: 'text-blue-600', label: 'In Review' },
+                'reviewing': { icon: 'ðŸ‘€', color: 'text-blue-600', label: 'Reviewing' },
                 
                 // Discussion/Communication statuses
-                'awaiting-discussion': { icon: '💬', color: 'text-purple-600', label: 'Awaiting Discussion' },
-                'awaiting-approval': { icon: '✋', color: 'text-orange-500', label: 'Awaiting Approval' },
-                'awaiting-input': { icon: '📨', color: 'text-indigo-500', label: 'Awaiting Input' },
+                'awaiting-discussion': { icon: 'ðŸ’¬', color: 'text-purple-600', label: 'Awaiting Discussion' },
+                'awaiting-approval': { icon: 'âœ‹', color: 'text-orange-500', label: 'Awaiting Approval' },
+                'awaiting-input': { icon: 'ðŸ“¨', color: 'text-indigo-500', label: 'Awaiting Input' },
                 
                 // Pause/Delay statuses
-                'delayed': { icon: '⏰', color: 'text-red-600', label: 'Delayed' },
-                'delayed-parked': { icon: '⏸', color: 'text-orange-600', label: 'Delayed/Parked' },
-                'parked': { icon: '🅿', color: 'text-gray-600', label: 'Parked' },
-                'on-hold': { icon: '⏸', color: 'text-yellow-700', label: 'On Hold' },
-                'paused': { icon: '⏸', color: 'text-yellow-600', label: 'Paused' },
+                'delayed': { icon: 'â°', color: 'text-red-600', label: 'Delayed' },
+                'delayed-parked': { icon: 'â¸', color: 'text-orange-600', label: 'Delayed/Parked' },
+                'parked': { icon: 'ðŸ…¿', color: 'text-gray-600', label: 'Parked' },
+                'on-hold': { icon: 'â¸', color: 'text-yellow-700', label: 'On Hold' },
+                'paused': { icon: 'â¸', color: 'text-yellow-600', label: 'Paused' },
                 
                 // Priority/Speed statuses
-                'set-aside': { icon: '📌', color: 'text-indigo-600', label: 'Set Aside' },
-                'go-slow': { icon: '🐢', color: 'text-blue-400', label: 'Go Slow' },
-                'urgent': { icon: '🔥', color: 'text-red-600', label: 'Urgent' },
-                'fast-track': { icon: '⚡', color: 'text-yellow-500', label: 'Fast Track' },
+                'set-aside': { icon: 'ðŸ“Œ', color: 'text-indigo-600', label: 'Set Aside' },
+                'go-slow': { icon: 'ðŸ¢', color: 'text-blue-400', label: 'Go Slow' },
+                'urgent': { icon: 'ðŸ”¥', color: 'text-red-600', label: 'Urgent' },
+                'fast-track': { icon: 'âš¡', color: 'text-yellow-500', label: 'Fast Track' },
                 
                 // Blocking/Issue statuses
-                'blocked': { icon: '🚫', color: 'text-red-700', label: 'Blocked' },
-                'disabled': { icon: '⊘', color: 'text-gray-500', label: 'Disabled' },
-                'do-not-execute': { icon: '🛑', color: 'text-red-800', label: 'Do Not Execute' },
-                'needs-info': { icon: '❓', color: 'text-blue-500', label: 'Needs Info' },
+                'blocked': { icon: 'ðŸš«', color: 'text-red-700', label: 'Blocked' },
+                'disabled': { icon: 'âŠ˜', color: 'text-gray-500', label: 'Disabled' },
+                'do-not-execute': { icon: 'ðŸ›‘', color: 'text-red-800', label: 'Do Not Execute' },
+                'needs-info': { icon: 'â“', color: 'text-blue-500', label: 'Needs Info' },
                 
                 // Completion variants
-                'cancelled': { icon: '✗', color: 'text-gray-500', label: 'Cancelled' },
-                'archived': { icon: '📦', color: 'text-gray-400', label: 'Archived' },
-                'verified': { icon: '✓✓', color: 'text-green-700', label: 'Verified' },
+                'cancelled': { icon: 'âœ—', color: 'text-gray-500', label: 'Cancelled' },
+                'archived': { icon: 'ðŸ“¦', color: 'text-gray-400', label: 'Archived' },
+                'verified': { icon: 'âœ“âœ“', color: 'text-green-700', label: 'Verified' },
                 
                 // Fallback for unknown statuses
-                'default': { icon: '●', color: 'text-gray-500', label: 'Status' }
+                'default': { icon: 'â—', color: 'text-gray-500', label: 'Status' }
             };
             
             // Get status icon/color/label for any status
@@ -2482,7 +2486,7 @@
 
             // ====== DRAG AND DROP HANDLERS ======
             const handleDragStart = (e, item, type) => {
-                console.log('🔥 Drag:', item.text || item.id);
+                console.log('ðŸ”¥ Drag:', item.text || item.id);
                 
                 // Simple approach - just set data and effectAllowed
                 e.dataTransfer.effectAllowed = 'move';
@@ -2523,17 +2527,17 @@
                 
                 // Force reflow to ensure states cleared
                 setTimeout(() => {
-                    console.log('✅ All drag states cleared');
+                    console.log('âœ… All drag states cleared');
                 }, 0);
                 
-                console.log('🏁 End drag');
+                console.log('ðŸ End drag');
             };
 
             const handleDragOver = (e, zone, zoneData) => {
                 e.preventDefault(); // CRITICAL: Must prevent default
                 e.stopPropagation(); // Stop event bubbling
                 e.dataTransfer.dropEffect = 'move'; // Set drop effect
-                console.log('👆 Over:', zone);
+                console.log('ðŸ‘† Over:', zone);
                 setDragOverZone({ zone, data: zoneData });
                 return false; // Additional safety
             };
@@ -2545,7 +2549,7 @@
             const handleDrop = (e, zone, zoneData) => {
                 e.preventDefault();
                 e.stopPropagation();
-                console.log('💧 Drop:', zone);
+                console.log('ðŸ’§ Drop:', zone);
                 
                 // Get dragged data - try all methods
                 let draggedData = null;
@@ -2569,12 +2573,12 @@
                 }
                 
                 if (!draggedData) {
-                    console.log('❌ No data');
+                    console.log('âŒ No data');
                     return;
                 }
 
                 const { item, type } = draggedData;
-                console.log('✅ Dropped:', item.text);
+                console.log('âœ… Dropped:', item.text);
 
                 // Handle different drop zones
                 if (zone === 'calendar-date' && type === 'task') {
@@ -2588,7 +2592,7 @@
                     const task = tasks.find(t => t.id === item.id);
                     if (!task?.scheduledDate) {
                         updates.scheduledDate = selectedDate;
-                        console.log('📅 Setting scheduled date:', selectedDate);
+                        console.log('ðŸ“… Setting scheduled date:', selectedDate);
                     }
                     
                     updateTask(item.id, updates);
@@ -2677,7 +2681,7 @@
                 if (e.button !== 0) return;
                 
                 e.preventDefault();
-                console.log('🖱️ Mouse drag:', task.text);
+                console.log('ðŸ–±ï¸ Mouse drag:', task.text);
                 
                 // Use refs for immediate tracking
                 isDraggingRef.current = true;
@@ -2699,7 +2703,7 @@
                 e.preventDefault();
                 
                 const touch = e.touches[0];
-                console.log('📱 Touch drag:', task.text);
+                console.log('ðŸ“± Touch drag:', task.text);
                 
                 // Use refs for immediate tracking
                 isDraggingRef.current = true;
@@ -2736,7 +2740,7 @@
                     
                     // Only log if zone changed (reduce spam)
                     if (currentDropZoneRef.current?.data !== zoneData) {
-                        console.log('👆 Mouse over:', zoneType);
+                        console.log('ðŸ‘† Mouse over:', zoneType);
                     }
                     
                     currentDropZoneRef.current = { type: zoneType, data: zoneData };
@@ -2774,7 +2778,7 @@
                     
                     // Only log if zone changed (reduce spam)
                     if (currentDropZoneRef.current?.data !== zoneData) {
-                        console.log('👆 Touch over:', zoneType);
+                        console.log('ðŸ‘† Touch over:', zoneType);
                     }
                     
                     currentDropZoneRef.current = { type: zoneType, data: zoneData };
@@ -2786,7 +2790,7 @@
             };
             
             const handleMouseDragEnd = (e) => {
-                console.log('🏁 Mouse drop');
+                console.log('ðŸ Mouse drop');
                 
                 // Remove global listeners
                 document.removeEventListener('mousemove', handleMouseDragMove);
@@ -2794,7 +2798,7 @@
                 
                 // Use refs for immediate access
                 if (currentDropZoneRef.current && draggedTaskRef.current) {
-                    console.log('💧 Dropped on:', currentDropZoneRef.current.type);
+                    console.log('ðŸ’§ Dropped on:', currentDropZoneRef.current.type);
                     
                     // Parse drop zone data
                     let dropData = {};
@@ -2823,15 +2827,15 @@
                         showToast(`Assigned to ${dropData.persona}`, true);
                     }
                     else if (currentDropZoneRef.current.type === 'project' || currentDropZoneRef.current.type === 'kanban-column') {
-                        console.log('📋 Kanban drop data:', dropData);
-                        console.log('📋 Task before update:', draggedTaskRef.current);
+                        console.log('ðŸ“‹ Kanban drop data:', dropData);
+                        console.log('ðŸ“‹ Task before update:', draggedTaskRef.current);
                         
                         if (dropData.status) {
                             updateTask(draggedTaskRef.current.id, { 
                                 status: dropData.status,
                                 project: dropData.project || dropData.projectId
                             });
-                            console.log('✅ Updated task with status:', dropData.status, 'project:', dropData.project);
+                            console.log('âœ… Updated task with status:', dropData.status, 'project:', dropData.project);
                             showToast(`Status updated to ${dropData.status}`, true);
                         } else {
                             updateTask(draggedTaskRef.current.id, { 
@@ -2846,7 +2850,7 @@
                         const targetTaskId = dropData.targetTaskId;
                         const position = dropData.position;
                         
-                        console.log('🔄 REORDER: Starting', { draggedTaskId, targetTaskId, position });
+                        console.log('ðŸ”„ REORDER: Starting', { draggedTaskId, targetTaskId, position });
                         
                         // V2.5.8-FIX: Use CURRENT filteredTasks from screen instead of recalculating
                         // This prevents corruption from stale manualOrder values after page reload
@@ -2854,7 +2858,7 @@
                         const draggedIndex = visibleTasks.findIndex(t => t.id === draggedTaskId);
                         const targetIndex = visibleTasks.findIndex(t => t.id === targetTaskId);
                         
-                        console.log('🔄 REORDER: Using current visual order, indices:', { draggedIndex, targetIndex });
+                        console.log('ðŸ”„ REORDER: Using current visual order, indices:', { draggedIndex, targetIndex });
                         
                         if (draggedIndex !== -1 && targetIndex !== -1) {
                             // Remove dragged task
@@ -2865,7 +2869,7 @@
                             const finalIndex = draggedIndex < targetIndex ? insertIndex - 1 : insertIndex;
                             visibleTasks.splice(finalIndex, 0, draggedTask);
                             
-                            console.log('🔄 REORDER: New order', visibleTasks.map(t => t.text.substring(0, 20)));
+                            console.log('ðŸ”„ REORDER: New order', visibleTasks.map(t => t.text.substring(0, 20)));
                             
                             // Assign sequential order to visible tasks only
                             const updatedTasks = tasks.map(task => {
@@ -2890,11 +2894,11 @@
                                     return task.manualOrder !== originalOrder;
                                 });
                                 
-                                console.log(`💾 Saving ${tasksToSave.length} tasks with new order to Supabase`);
+                                console.log(`ðŸ’¾ Saving ${tasksToSave.length} tasks with new order to Supabase`);
                                 
                                 // V2.5.7-FIX: Block real-time updates during reorder save
                                 isReorderingRef.current = true;
-                                console.log('🔒 Blocking real-time updates during reorder');
+                                console.log('ðŸ”’ Blocking real-time updates during reorder');
                                 
                                 // Clear any existing timeout
                                 if (reorderTimeoutRef.current) {
@@ -2905,19 +2909,19 @@
                                 if (tasksToSave.length > 0) {
                                     Promise.all(tasksToSave.map(task => saveTaskToSupabase(task)))
                                         .then(() => {
-                                            console.log('✅ Manual order saved to Supabase');
+                                            console.log('âœ… Manual order saved to Supabase');
                                             // V2.5.8-FIX: Unblock after 2 seconds (was 1) to ensure all echoes settle
                                             reorderTimeoutRef.current = setTimeout(() => {
                                                 isReorderingRef.current = false;
-                                                console.log('🔓 Unblocked real-time updates');
+                                                console.log('ðŸ”“ Unblocked real-time updates');
                                             }, 2000);
                                         })
                                         .catch(err => {
-                                            console.error('❌ Error saving manual order:', err);
+                                            console.error('âŒ Error saving manual order:', err);
                                             // Unblock even on error
                                             reorderTimeoutRef.current = setTimeout(() => {
                                                 isReorderingRef.current = false;
-                                                console.log('🔓 Unblocked real-time updates (after error)');
+                                                console.log('ðŸ”“ Unblocked real-time updates (after error)');
                                             }, 2000);
                                         });
                                 }
@@ -2925,11 +2929,11 @@
                             
                             showToast('Task reordered', true);
                         } else {
-                            console.log('❌ REORDER: Invalid indices!');
+                            console.log('âŒ REORDER: Invalid indices!');
                         }
                     }
                 } else {
-                    console.log('❌ No drop zone or task');
+                    console.log('âŒ No drop zone or task');
                 }
                 
                 // Reset refs
@@ -2946,7 +2950,7 @@
             
             // V2.5.13-FIX: Touch end handler (mirrors mouse end)
             const handleTouchDragEnd = (e) => {
-                console.log('🏁 Touch drop');
+                console.log('ðŸ Touch drop');
                 
                 // Remove global listeners
                 document.removeEventListener('touchmove', handleTouchDragMove);
@@ -2954,7 +2958,7 @@
                 
                 // Use refs for immediate access
                 if (currentDropZoneRef.current && draggedTaskRef.current) {
-                    console.log('💧 Dropped on:', currentDropZoneRef.current.type);
+                    console.log('ðŸ’§ Dropped on:', currentDropZoneRef.current.type);
                     
                     // Parse drop zone data
                     let dropData = {};
@@ -2983,15 +2987,15 @@
                         showToast(`Assigned to ${dropData.persona}`, true);
                     }
                     else if (currentDropZoneRef.current.type === 'project' || currentDropZoneRef.current.type === 'kanban-column') {
-                        console.log('📋 Kanban drop data:', dropData);
-                        console.log('📋 Task before update:', draggedTaskRef.current);
+                        console.log('ðŸ“‹ Kanban drop data:', dropData);
+                        console.log('ðŸ“‹ Task before update:', draggedTaskRef.current);
                         
                         if (dropData.status) {
                             updateTask(draggedTaskRef.current.id, { 
                                 status: dropData.status,
                                 project: dropData.project || dropData.projectId
                             });
-                            console.log('✅ Updated task with status:', dropData.status, 'project:', dropData.project);
+                            console.log('âœ… Updated task with status:', dropData.status, 'project:', dropData.project);
                             showToast(`Status updated to ${dropData.status}`, true);
                         } else {
                             updateTask(draggedTaskRef.current.id, { 
@@ -3006,13 +3010,13 @@
                         const targetTaskId = dropData.targetTaskId;
                         const position = dropData.position;
                         
-                        console.log('🔄 REORDER: Starting', { draggedTaskId, targetTaskId, position });
+                        console.log('ðŸ”„ REORDER: Starting', { draggedTaskId, targetTaskId, position });
                         
                         const visibleTasks = [...filteredTasks];
                         const draggedIndex = visibleTasks.findIndex(t => t.id === draggedTaskId);
                         const targetIndex = visibleTasks.findIndex(t => t.id === targetTaskId);
                         
-                        console.log('🔄 REORDER: Using current visual order, indices:', { draggedIndex, targetIndex });
+                        console.log('ðŸ”„ REORDER: Using current visual order, indices:', { draggedIndex, targetIndex });
                         
                         if (draggedIndex !== -1 && targetIndex !== -1) {
                             // Remove dragged task
@@ -3023,7 +3027,7 @@
                             const finalIndex = draggedIndex < targetIndex ? insertIndex - 1 : insertIndex;
                             visibleTasks.splice(finalIndex, 0, draggedTask);
                             
-                            console.log('🔄 REORDER: New order', visibleTasks.map(t => t.text.substring(0, 20)));
+                            console.log('ðŸ”„ REORDER: New order', visibleTasks.map(t => t.text.substring(0, 20)));
                             
                             // Assign sequential order to visible tasks only
                             const updatedTasks = tasks.map(task => {
@@ -3041,11 +3045,11 @@
                             const tasksToSave = updatedTasks.filter(t => t.manualOrder !== null && t.manualOrder !== undefined);
                             
                             if (tasksToSave.length > 0 && user) {
-                                console.log(`💾 Saving ${tasksToSave.length} tasks with new order to Supabase`);
+                                console.log(`ðŸ’¾ Saving ${tasksToSave.length} tasks with new order to Supabase`);
                                 
                                 // Block real-time updates during reorder save
                                 isReorderingRef.current = true;
-                                console.log('🔒 Blocking real-time updates during reorder');
+                                console.log('ðŸ”’ Blocking real-time updates during reorder');
                                 
                                 // Clear any existing timeout
                                 if (reorderTimeoutRef.current) {
@@ -3056,19 +3060,19 @@
                                 if (tasksToSave.length > 0) {
                                     Promise.all(tasksToSave.map(task => saveTaskToSupabase(task)))
                                         .then(() => {
-                                            console.log('✅ Manual order saved to Supabase');
+                                            console.log('âœ… Manual order saved to Supabase');
                                             // Unblock after 2 seconds (increased from 1s for safety)
                                             reorderTimeoutRef.current = setTimeout(() => {
                                                 isReorderingRef.current = false;
-                                                console.log('🔓 Unblocked real-time updates');
+                                                console.log('ðŸ”“ Unblocked real-time updates');
                                             }, 2000);
                                         })
                                         .catch(err => {
-                                            console.error('❌ Error saving manual order:', err);
+                                            console.error('âŒ Error saving manual order:', err);
                                             // Unblock even on error
                                             reorderTimeoutRef.current = setTimeout(() => {
                                                 isReorderingRef.current = false;
-                                                console.log('🔓 Unblocked real-time updates (after error)');
+                                                console.log('ðŸ”“ Unblocked real-time updates (after error)');
                                             }, 2000);
                                         });
                                 }
@@ -3076,11 +3080,11 @@
                             
                             showToast('Task reordered', true);
                         } else {
-                            console.log('❌ REORDER: Invalid indices!');
+                            console.log('âŒ REORDER: Invalid indices!');
                         }
                     }
                 } else {
-                    console.log('❌ No drop zone or task');
+                    console.log('âŒ No drop zone or task');
                 }
                 
                 // Reset refs
@@ -3209,7 +3213,7 @@
                 const lines = bulkImportText.split('\n').filter(line => line.trim());
                 const items = lines.map((line, idx) => ({
                     id: Date.now() + idx,
-                    text: line.trim().replace(/^[+\-*•]\s*/, '')
+                    text: line.trim().replace(/^[+\-*â€¢]\s*/, '')
                 }));
                 setImportedItems(items);
                 setCurrentClassifyIndex(0);
@@ -3250,6 +3254,8 @@
                 if (priority === 'urgent') return 'bg-red-100 text-red-700';
                 if (priority === 'high') return 'bg-orange-100 text-orange-700';
                 if (priority === 'medium') return 'bg-yellow-100 text-yellow-700';
+                if (priority === 'low') return 'bg-blue-100 text-blue-700';
+                if (priority === 'non-priority') return 'bg-gray-100 text-gray-500'; // V2.7.0: Rating 0
                 return 'bg-gray-100 text-gray-700';
             };
 
@@ -3290,7 +3296,7 @@
                 
                 // V2.6.3-QUICKEDIT: Open Quick Edit modal
                 const openQuickEdit = () => {
-                    console.log('✨ Opening Quick Edit for:', task.text);
+                    console.log('âœ¨ Opening Quick Edit for:', task.text);
                     setQuickEditTask({...task});
                 };
                 
@@ -3425,7 +3431,7 @@
                                     {/* Tags and metadata */}
                                     <div className="flex flex-wrap gap-1 mt-2 text-xs">
                                         <span className={`px-2 py-0.5 rounded ${getPriorityColor(task.priority)}`}>
-                                            {task.priority}
+                                            {task.priority} {task.priority_rating !== undefined && `(${task.priority_rating})`}
                                         </span>
                                         <span className="bg-indigo-100 text-indigo-700 px-2 py-0.5 rounded">
                                             {task.persona}
@@ -3440,22 +3446,22 @@
                                         </span>
                                         {task.dueLabel && (
                                             <span className="bg-orange-100 text-orange-700 px-2 py-0.5 rounded">
-                                                📅 {task.dueLabel}
+                                                ðŸ“… {task.dueLabel}
                                             </span>
                                         )}
                                         {task.timeSlot && (
                                             <span className="bg-blue-100 text-blue-700 px-2 py-0.5 rounded">
-                                                🕒 {task.timeSlot}
+                                                ðŸ•’ {task.timeSlot}
                                             </span>
                                         )}
                                         {task.estimatedDuration && (
                                             <span className="bg-cyan-100 text-cyan-700 px-2 py-0.5 rounded">
-                                                ⏱️ {task.estimatedDuration}min
+                                                â±ï¸ {task.estimatedDuration}min
                                             </span>
                                         )}
                                         {task.recurringPattern && (
                                             <span className="bg-pink-100 text-pink-700 px-2 py-0.5 rounded">
-                                                🔄 {task.recurringPattern}
+                                                ðŸ”„ {task.recurringPattern}
                                             </span>
                                         )}
                                         {task.tags?.map(tag => (
@@ -3465,7 +3471,7 @@
                                         ))}
                                         {task.subtasks?.length > 0 && (
                                             <span className="bg-blue-100 text-blue-700 px-2 py-0.5 rounded">
-                                                ✓ {task.subtasks.filter(st => st.status === 'completed').length}/{task.subtasks.length}
+                                                âœ“ {task.subtasks.filter(st => st.status === 'completed').length}/{task.subtasks.length}
                                             </span>
                                         )}
                                     </div>
@@ -3473,7 +3479,7 @@
                                     {/* Date info */}
                                     {showDate && task.scheduledDate && (
                                         <div className="text-xs text-gray-500 mt-1">
-                                            📅 {formatDateDisplay(task.scheduledDate)}
+                                            ðŸ“… {formatDateDisplay(task.scheduledDate)}
                                         </div>
                                     )}
 
@@ -3487,7 +3493,7 @@
                                     {/* Timestamps */}
                                     <div className="text-xs text-gray-400 mt-1">
                                         {task.createdAt && `Created: ${formatDateDisplay(task.createdAt)}`}
-                                        {task.completedAt && ` • Completed: ${formatDateDisplay(task.completedAt)}`}
+                                        {task.completedAt && ` â€¢ Completed: ${formatDateDisplay(task.completedAt)}`}
                                     </div>
                                 </div>
 
@@ -3504,14 +3510,14 @@
                                     <button
                                         onClick={(e) => {
                                             e.stopPropagation();
-                                            console.log('⚡ Quick Edit button clicked for:', task.text);
+                                            console.log('âš¡ Quick Edit button clicked for:', task.text);
                                             setQuickEditTask({...task});
                                             setShowQuickEdit(true);
                                         }}
                                         onTouchEnd={(e) => {
                                             e.preventDefault();
                                             e.stopPropagation();
-                                            console.log('⚡ Quick Edit button touched for:', task.text);
+                                            console.log('âš¡ Quick Edit button touched for:', task.text);
                                             setQuickEditTask({...task});
                                             setShowQuickEdit(true);
                                         }}
@@ -3609,6 +3615,28 @@
                                                 <option value="maintenance">Maintenance (2pts)</option>
                                             </select>
                                         </div>
+                                    </div>
+
+                                    {/* V2.7.0: Priority Rating (0-10) */}
+                                    <div>
+                                        <label className="text-xs font-semibold">Priority Rating (0-10)</label>
+                                        <select
+                                            value={task.priority_rating !== undefined ? task.priority_rating : 5}
+                                            onChange={(e) => handleTaskUpdate({ priority_rating: parseInt(e.target.value) })}
+                                            className="w-full px-2 py-1 border rounded text-xs"
+                                        >
+                                            <option value="0">0 - Non-priority</option>
+                                            <option value="1">1 - Low</option>
+                                            <option value="2">2 - Low</option>
+                                            <option value="3">3 - Medium</option>
+                                            <option value="4">4 - Medium</option>
+                                            <option value="5">5 - Medium</option>
+                                            <option value="6">6 - High</option>
+                                            <option value="7">7 - High</option>
+                                            <option value="8">8 - High</option>
+                                            <option value="9">9 - Urgent</option>
+                                            <option value="10">10 - Urgent</option>
+                                        </select>
                                     </div>
 
                                     {/* V2.6.3-QUICKEDIT: Status dropdown */}
@@ -4080,12 +4108,12 @@
                                     <span className="font-semibold">{event.text}</span>
                                 </div>
                                 <div className="text-sm text-gray-600 space-y-0.5">
-                                    <div>⏰ {event.startTime} - {event.endTime}</div>
-                                    {event.persona && <div>👤 {event.persona}</div>}
-                                    {event.project && <div>📁 {event.project}</div>}
+                                    <div>â° {event.startTime} - {event.endTime}</div>
+                                    {event.persona && <div>ðŸ‘¤ {event.persona}</div>}
+                                    {event.project && <div>ðŸ“ {event.project}</div>}
                                     {event.priority && (
                                         <div>
-                                            🎯 Priority: <span className={`font-semibold ${
+                                            ðŸŽ¯ Priority: <span className={`font-semibold ${
                                                 event.priority === 'urgent' ? 'text-red-600' :
                                                 event.priority === 'high' ? 'text-orange-600' :
                                                 event.priority === 'low' ? 'text-green-600' :
@@ -4094,14 +4122,14 @@
                                         </div>
                                     )}
                                     {event.tags && event.tags.length > 0 && (
-                                        <div>🏷️ {Array.isArray(event.tags) ? event.tags.join(', ') : event.tags}</div>
+                                        <div>ðŸ·ï¸ {Array.isArray(event.tags) ? event.tags.join(', ') : event.tags}</div>
                                     )}
                                     {/* Notes always visible */}
                                     <div className="text-sm">
-                                        📝 {event.notes || <span className="text-gray-400 italic">No notes</span>}
+                                        ðŸ“ {event.notes || <span className="text-gray-400 italic">No notes</span>}
                                     </div>
                                     {event.tasks && event.tasks.length > 0 && (
-                                        <div>📋 {event.tasks.length} task{event.tasks.length !== 1 ? 's' : ''}</div>
+                                        <div>ðŸ“‹ {event.tasks.length} task{event.tasks.length !== 1 ? 's' : ''}</div>
                                     )}
                                 </div>
                             </div>
@@ -4435,7 +4463,7 @@
                                     {/* V2.6.2-POLISH: Sync button for manual refresh */}
                                     <button
                                         onClick={async () => {
-                                            console.log('🔄 Manual sync triggered');
+                                            console.log('ðŸ”„ Manual sync triggered');
                                             showToast('Syncing...', false);
                                             
                                             // Force reload from Supabase
@@ -4501,11 +4529,11 @@
                                                 
                                                 setEvents(loadedEvents);
                                                 
-                                                showToast('✅ Synced successfully!', false);
-                                                console.log('✅ Manual sync complete:', loadedTasks.length, 'tasks,', loadedEvents.length, 'events');
+                                                showToast('âœ… Synced successfully!', false);
+                                                console.log('âœ… Manual sync complete:', loadedTasks.length, 'tasks,', loadedEvents.length, 'events');
                                             } catch (error) {
-                                                console.error('❌ Sync error:', error);
-                                                showToast('❌ Sync failed', true);
+                                                console.error('âŒ Sync error:', error);
+                                                showToast('âŒ Sync failed', true);
                                             }
                                         }}
                                         disabled={isLoadingFromSupabase}
@@ -4632,7 +4660,7 @@
                                                     isCreatingTasksRef.current = false;
                                                     
                                                     if (wasInRapidMode) {
-                                                        console.log('🔄 Exited rapid entry mode');
+                                                        console.log('ðŸ”„ Exited rapid entry mode');
                                                         // V2.6.3: Don't show toast or update lastSyncTime
                                                         // These cause screen shake and auto-scroll
                                                         // User feedback: toast causes focus loss and screen jump
@@ -4703,7 +4731,7 @@
                                                     isCreatingTasksRef.current = false;
                                                     
                                                     if (wasInRapidMode) {
-                                                        console.log('🔄 Exited rapid entry mode');
+                                                        console.log('ðŸ”„ Exited rapid entry mode');
                                                         // V2.6.3: Don't show toast or update lastSyncTime
                                                         // These cause screen shake and auto-scroll
                                                         // User feedback: toast causes focus loss and screen jump
@@ -4848,7 +4876,7 @@
                         return !event.archived && event.scheduledDate === dateStr;
                     }).map(e => ({ ...e, _itemType: 'event' }));
                     
-                    // ✅ REFACTORED: Use utility function instead of inline logic
+                    // âœ… REFACTORED: Use utility function instead of inline logic
                     const tasksForDate = tasks.filter(task => {
                         if (task.archived) return false;
                         
@@ -4935,7 +4963,7 @@
                                                     }}
                                                     title={`${item.text} (${item.startTime}-${item.endTime})`}
                                                 >
-                                                    📅 {item.text}
+                                                    ðŸ“… {item.text}
                                                 </div>
                                             );
                                         }
@@ -4954,10 +4982,10 @@
                                                     item.status === 'in-progress' ? 'bg-blue-100 text-blue-700' :
                                                     'bg-gray-100 text-gray-700'
                                                 }`}
-                                                title={`${item.text}${isInvalid ? ' (⚠️ INVALID DATES)' : isDue ? ' (DUE TODAY 📍)' : ''}`}
+                                                title={`${item.text}${isInvalid ? ' (âš ï¸ INVALID DATES)' : isDue ? ' (DUE TODAY ðŸ“)' : ''}`}
                                             >
-                                                {isInvalid && '⚠️ '}
-                                                {isDue && !isInvalid && '📍 '}
+                                                {isInvalid && 'âš ï¸ '}
+                                                {isDue && !isInvalid && 'ðŸ“ '}
                                                 {item.text}
                                             </div>
                                         );
@@ -5052,7 +5080,7 @@
                 const [newTimelineTask, setNewTimelineTask] = useState('');
 
                 // FIX: Show ALL tasks for the date (like Calendar), not just those with time slots
-                // ✅ REFACTORED: Use utility function
+                // âœ… REFACTORED: Use utility function
                 const tasksForDate = tasks.filter(t => {
                     if (t.archived) return false;
                     return getTaskIsScheduledForDate(t, selectedDate);
@@ -5129,9 +5157,9 @@
                             return (
                                 <div className="mb-4 p-4 bg-yellow-50 rounded-lg border-2 border-yellow-300">
                                     <h3 className="font-semibold text-sm mb-2 flex items-center gap-2">
-                                        📋 Unscheduled Tasks ({unscheduledTasks.length})
+                                        ðŸ“‹ Unscheduled Tasks ({unscheduledTasks.length})
                                         <span className="text-xs text-blue-600 font-semibold">
-                                            ⬇️ Drag tasks below to time slots to schedule them
+                                            â¬‡ï¸ Drag tasks below to time slots to schedule them
                                         </span>
                                     </h3>
                                     <div className="space-y-2">
@@ -5218,7 +5246,7 @@
                 const allTasks = tasks.filter(t => !t.archived);
                 
                 // Today's tasks with subtasks - use same logic as Calendar
-                // ✅ REFACTORED: Use utility function
+                // âœ… REFACTORED: Use utility function
                 const todayTasks = allTasks.filter(task => {
                     return getTaskIsScheduledForDate(task, today);
                 });
@@ -5317,7 +5345,7 @@
                     const startIndex = dateRange.indexOf(task.scheduledDate);
                     if (startIndex === -1) return null;
                     
-                    // ✅ REFACTORED: Use utility function
+                    // âœ… REFACTORED: Use utility function
                     const daysSpan = getTaskDaysSpan(task);
                     
                     const leftPercent = (startIndex / dateRange.length) * 100;
@@ -5330,7 +5358,7 @@
                         // CRITICAL FIX: Only start drag if NOT already dragging!
                         // This prevents re-renders from resetting the start date
                         if (draggingGanttTaskRef.current) {
-                            console.log('⚠️ Already dragging, ignoring mousedown');
+                            console.log('âš ï¸ Already dragging, ignoring mousedown');
                             return;
                         }
                         
@@ -5344,7 +5372,7 @@
                         dragStartDateRef.current = task.scheduledDate; // LOCKED!
                         dragStartDaysRef.current = daysSpan; // LOCKED!
                         
-                        console.log('🎯 Gantt drag start:', mode, task.text, 'from date:', task.scheduledDate, '(LOCKED)');
+                        console.log('ðŸŽ¯ Gantt drag start:', mode, task.text, 'from date:', task.scheduledDate, '(LOCKED)');
                         
                         // Define handlers as functions that can be removed later
                         const handleMouseMove = (e) => {
@@ -5370,12 +5398,12 @@
                             // Now we know user is actually dragging
                             if (!isDragging) {
                                 setIsDragging(true);
-                                console.log('🚀 Drag movement detected, isDragging = true');
+                                console.log('ðŸš€ Drag movement detected, isDragging = true');
                             }
                             
-                            console.log('📍 Drag move:', daysDelta, 'days (deltaX:', Math.round(deltaX), 'px)');
+                            console.log('ðŸ“ Drag move:', daysDelta, 'days (deltaX:', Math.round(deltaX), 'px)');
                             
-                            // ✅ FIX Screen Jumps: Only update visual state when day count changes
+                            // âœ… FIX Screen Jumps: Only update visual state when day count changes
                             // This reduces re-renders from ~20 per drag to ~5 per drag
                             if (daysDelta !== lastDaysDeltaRef.current) {
                                 lastDaysDeltaRef.current = daysDelta;
@@ -5385,7 +5413,7 @@
                             const mode = dragModeRef.current;
                             const task = draggingGanttTaskRef.current;
                             
-                            // ✅ FIX: DON'T call setTasks() during drag!
+                            // âœ… FIX: DON'T call setTasks() during drag!
                             // Store nothing - task will update ONCE on mouseup
                             // This prevents re-renders that destroy event handlers
                         };
@@ -5402,7 +5430,7 @@
                                 const actuallyDragged = lastDaysDeltaRef.current !== 0;
                                 
                                 if (actuallyDragged) {
-                                    console.log('🏁 Gantt drag end:', mode);
+                                    console.log('ðŸ Gantt drag end:', mode);
                                     
                                     // LOCK scroll position during state update  
                                     // Method: Add padding to compensate for scrollbar width, then hide overflow
@@ -5416,7 +5444,7 @@
                                     document.body.style.paddingRight = `${scrollbarWidth}px`;
                                     document.body.style.overflow = 'hidden';
                                     
-                                    // ✅ NOW apply the changes - ONCE at the end!
+                                    // âœ… NOW apply the changes - ONCE at the end!
                                     const task = draggingGanttTaskRef.current;
                                     const daysDelta = lastDaysDeltaRef.current;
                                     
@@ -5520,7 +5548,7 @@
                                         }
                                     }
                                     
-                                    // ✅ AGGRESSIVE SCROLL RESTORE: Try multiple times to fight browser scroll changes
+                                    // âœ… AGGRESSIVE SCROLL RESTORE: Try multiple times to fight browser scroll changes
                                     // Restore immediately
                                     window.scrollTo(scrollX, scrollY);
                                     
@@ -5529,17 +5557,17 @@
                                         window.scrollTo(scrollX, scrollY);
                                         document.body.style.overflow = originalOverflow;
                                         document.body.style.paddingRight = originalPaddingRight;
-                                        console.log('📍 Scroll restored (frame 1) to', scrollX, scrollY);
+                                        console.log('ðŸ“ Scroll restored (frame 1) to', scrollX, scrollY);
                                         
                                         // Restore in frame after that
                                         requestAnimationFrame(() => {
                                             window.scrollTo(scrollX, scrollY);
-                                            console.log('📍 Scroll restored (frame 2) to', scrollX, scrollY);
+                                            console.log('ðŸ“ Scroll restored (frame 2) to', scrollX, scrollY);
                                             
                                             // One more time for good measure
                                             setTimeout(() => {
                                                 window.scrollTo(scrollX, scrollY);
-                                                console.log('📍 Scroll restored (final) to', scrollX, scrollY);
+                                                console.log('ðŸ“ Scroll restored (final) to', scrollX, scrollY);
                                             }, 10);
                                         });
                                     });
@@ -5548,14 +5576,14 @@
                                     showToast(toastMsg, true);
                                     wasDraggingTaskIdRef.current = task.id; // Mark THIS task as dragged
                                 } else {
-                                    console.log('👆 Click detected (no movement)');
+                                    console.log('ðŸ‘† Click detected (no movement)');
                                     wasDraggingTaskIdRef.current = null; // No drag, allow clicks
                                     
                                     // Manually trigger onClick since preventDefault() blocks native click
                                     // Use setTimeout to ensure it happens after mouseup completes
                                     const clickTask = draggingGanttTaskRef.current;
                                     setTimeout(() => {
-                                        console.log('🔍 Manual onClick for task:', clickTask.id);
+                                        console.log('ðŸ” Manual onClick for task:', clickTask.id);
                                         
                                         // Open QuickEdit for this task
                                         if (clickTask.isSubtask && clickTask.parentId) {
@@ -5574,7 +5602,7 @@
                                                             taskType: subtaskData.taskType || parentTask.taskType,
                                                             project: parentTask.project
                                                         };
-                                                        console.log('✅ Opening QuickEdit for subtask:', subtaskForEdit.text);
+                                                        console.log('âœ… Opening QuickEdit for subtask:', subtaskForEdit.text);
                                                         setQuickEditTask(subtaskForEdit);
                                                         setShowQuickEdit(true);
                                                     }
@@ -5585,7 +5613,7 @@
                                             // Regular task
                                             const originalTask = tasks.find(t => t.id === clickTask.id);
                                             if (originalTask) {
-                                                console.log('✅ Opening QuickEdit for task:', originalTask.text);
+                                                console.log('âœ… Opening QuickEdit for task:', originalTask.text);
                                                 setQuickEditTask({...originalTask});
                                                 setShowQuickEdit(true);
                                             }
@@ -5661,11 +5689,11 @@
                             }}
                             onMouseDown={(e) => handleBarMouseDown(e, 'move')}
                             onClick={(e) => {
-                                console.log('🔍 onClick fired for task:', task.id, 'wasDraggingTaskIdRef:', wasDraggingTaskIdRef.current);
+                                console.log('ðŸ” onClick fired for task:', task.id, 'wasDraggingTaskIdRef:', wasDraggingTaskIdRef.current);
                                 
                                 // Only block if THIS specific task was just dragged
                                 if (wasDraggingTaskIdRef.current === task.id) {
-                                    console.log('🚫 Click blocked - THIS task was just dragged');
+                                    console.log('ðŸš« Click blocked - THIS task was just dragged');
                                     return;
                                 }
                                 
@@ -5673,7 +5701,7 @@
                                     e.stopPropagation();
                                     e.preventDefault();
                                     
-                                    console.log('🎯 TaskBar clicked:', {
+                                    console.log('ðŸŽ¯ TaskBar clicked:', {
                                         id: task.id,
                                         text: task.text,
                                         isSubtask: task.isSubtask,
@@ -5697,7 +5725,7 @@
                                                         taskType: subtaskData.taskType || parentTask.taskType,
                                                         project: parentTask.project
                                                     };
-                                                    console.log('✅ Opening QuickEdit for subtask:', subtaskForEdit.text);
+                                                    console.log('âœ… Opening QuickEdit for subtask:', subtaskForEdit.text);
                                                     setQuickEditTask(subtaskForEdit);
                                                     setShowQuickEdit(true);
                                                 }
@@ -5709,7 +5737,7 @@
                                         setTasks(currentTasks => {
                                             const originalTask = currentTasks.find(t => t.id === task.id);
                                             if (originalTask) {
-                                                console.log('✅ Opening QuickEdit for task:', originalTask.text);
+                                                console.log('âœ… Opening QuickEdit for task:', originalTask.text);
                                                 setQuickEditTask({...originalTask});
                                                 setShowQuickEdit(true);
                                             }
@@ -5717,7 +5745,7 @@
                                         });
                                     }
                                 } catch (err) {
-                                    console.error('❌ Error in TaskBar click:', err);
+                                    console.error('âŒ Error in TaskBar click:', err);
                                 }
                             }}
                             title={`${task.text} - ${daysSpan} day${daysSpan > 1 ? 's' : ''} - ${task.priority}`}
@@ -5772,7 +5800,7 @@
                     timelineDragStartDurationRef.current = task.estimatedDuration || 30;
                     timelineIsDraggingRef.current = false; // Will be set to true on first movement
                     
-                    console.log('🎯 Timeline drag start:', mode, task.text, 'from time:', task.timeSlot);
+                    console.log('ðŸŽ¯ Timeline drag start:', mode, task.text, 'from time:', task.timeSlot);
                     
                     document.addEventListener('mousemove', handleTimelineBarMouseMove);
                     document.addEventListener('mouseup', handleTimelineBarMouseUp);
@@ -5786,7 +5814,7 @@
                     // Detect movement threshold
                     if (!timelineIsDraggingRef.current && Math.abs(deltaX) > 3) {
                         timelineIsDraggingRef.current = true;
-                        console.log('🚀 Timeline drag movement detected');
+                        console.log('ðŸš€ Timeline drag movement detected');
                     }
                     
                     if (!timelineIsDraggingRef.current) return;
@@ -5850,7 +5878,7 @@
                         widthPercent: Math.min(ghostWidth, 90 - ghostLeft) // Buffer zone
                     });
                     
-                    console.log('📍 Timeline drag move: deltaX:', deltaX, 'minutes delta:', minutesDelta, 'ghost:', ghostLeft + '%');
+                    console.log('ðŸ“ Timeline drag move: deltaX:', deltaX, 'minutes delta:', minutesDelta, 'ghost:', ghostLeft + '%');
                 };
                 
                 const handleTimelineBarMouseUp = (e) => {
@@ -5864,12 +5892,12 @@
                     
                     if (!timelineIsDraggingRef.current) {
                         // Click, not drag
-                        console.log('👆 Timeline click detected (no movement)');
+                        console.log('ðŸ‘† Timeline click detected (no movement)');
                         timelineDragTaskRef.current = null;
                         return;
                     }
                     
-                    console.log('🏁 Timeline drag end:', mode);
+                    console.log('ðŸ Timeline drag end:', mode);
                     
                     const deltaX = e.clientX - timelineDragStartXRef.current;
                     const timelineWidth = 800;
@@ -5903,7 +5931,7 @@
                         // SPECIAL CASE: Unscheduled tasks get assigned a default start time
                         if (oldMinutes === null) {
                             oldMinutes = 9 * 60; // Default to 9:00 AM
-                            console.log('⚠️ Unscheduled task - assigning default time 9:00 AM');
+                            console.log('âš ï¸ Unscheduled task - assigning default time 9:00 AM');
                         }
                         
                         // Apply drag delta with NO upper limit (work as long as you want!)
@@ -5912,7 +5940,7 @@
                         const newTimeSlot = minutesToTime(newMinutes);
                         const taskDuration = task.estimatedDuration || 30;
                         
-                        console.log('🔧 Move:', {
+                        console.log('ðŸ”§ Move:', {
                             oldTime: timelineDragStartTimeRef.current,
                             duration: taskDuration,
                             newTime: newTimeSlot,
@@ -5948,7 +5976,7 @@
                         // SPECIAL CASE: Unscheduled tasks get assigned a default start time
                         if (oldStartMinutes === null) {
                             oldStartMinutes = 9 * 60; // Default to 9:00 AM
-                            console.log('⚠️ Unscheduled task - assigning default time 9:00 AM');
+                            console.log('âš ï¸ Unscheduled task - assigning default time 9:00 AM');
                         }
                         
                         const oldDuration = timelineDragStartDurationRef.current;
@@ -5970,7 +5998,7 @@
                         
                         const newTimeSlot = minutesToTime(newStartMinutes);
                         
-                        console.log('🔧 Resize-start:', {
+                        console.log('ðŸ”§ Resize-start:', {
                             oldStart: timelineDragStartTimeRef.current,
                             oldDuration,
                             oldEnd: minutesToTime(oldEndMinutes),
@@ -6008,7 +6036,7 @@
                         // SPECIAL CASE: Unscheduled tasks get assigned a default start time
                         if (startMinutes === null) {
                             startMinutes = 9 * 60; // Default to 9:00 AM
-                            console.log('⚠️ Unscheduled task - assigning default time 9:00 AM');
+                            console.log('âš ï¸ Unscheduled task - assigning default time 9:00 AM');
                         }
                         
                         const oldDuration = timelineDragStartDurationRef.current;
@@ -6017,7 +6045,7 @@
                         // Only clamp to min/max duration (no time-of-day constraint)
                         newDuration = Math.max(MIN_DURATION, Math.min(MAX_DURATION, newDuration));
                         
-                        console.log('🔧 Resize-end:', {
+                        console.log('ðŸ”§ Resize-end:', {
                             startTime: timelineDragStartTimeRef.current,
                             oldDuration,
                             newDuration,
@@ -6105,7 +6133,7 @@
                         {/* Section 1: Today's Tasks with Subtasks */}
                         <div className="mb-8">
                             <h3 className="text-lg font-semibold mb-3 flex items-center gap-2">
-                                <span>📅 Today's Tasks & Subtasks</span>
+                                <span>ðŸ“… Today's Tasks & Subtasks</span>
                                 <span className="text-sm text-gray-600">({todayWithSubtasks.length})</span>
                             </h3>
                             
@@ -6131,7 +6159,7 @@
                                     <div className="space-y-1">
                                         {todayWithSubtasks.map(task => {
                                             // Calculate position based on time slot (6AM-9PM range)
-                                            // ✅ REFACTORED: Use utility function
+                                            // âœ… REFACTORED: Use utility function
                                             const getTimePosition = (timeSlot) => {
                                                 if (!timeSlot) return 0;
                                                 
@@ -6161,7 +6189,7 @@
                                             return (
                                                 <div key={task.id} className="flex items-center gap-2">
                                                     <div className={`flex-shrink-0 w-48 text-sm truncate ${task.isSubtask ? 'pl-6 text-gray-600' : 'font-medium'}`} title={task.text}>
-                                                        {task.isSubtask && '└ '}
+                                                        {task.isSubtask && 'â”” '}
                                                         {task.text}
                                                     </div>
                                                     <div className="flex-1 relative bg-gray-50 rounded" style={{minHeight: '32px'}}>
@@ -6217,7 +6245,7 @@
                                                                     // Was dragging, don't open edit
                                                                     return;
                                                                 }
-                                                                console.log('🔍 Today bar clicked:', {
+                                                                console.log('ðŸ” Today bar clicked:', {
                                                                     id: task.id,
                                                                     text: task.text,
                                                                     isSubtask: task.isSubtask,
@@ -6229,16 +6257,16 @@
                                                                     
                                                                     // FIX Issue 8: Edit subtask directly if it's a subtask
                                                                     if (task.isSubtask && task.parentId) {
-                                                                        console.log('  → Attempting subtask edit');
+                                                                        console.log('  â†’ Attempting subtask edit');
                                                                         // Find parent task
                                                                         const parentTask = tasks.find(t => t.id === task.parentId);
-                                                                        console.log('  → Parent task found:', !!parentTask);
+                                                                        console.log('  â†’ Parent task found:', !!parentTask);
                                                                         if (parentTask) {
                                                                             // Find this specific subtask using original ID
                                                                             const lookupId = task.originalSubtaskId || task.id;
-                                                                            console.log('  → Looking for subtask ID:', lookupId);
+                                                                            console.log('  â†’ Looking for subtask ID:', lookupId);
                                                                             const subtaskData = parentTask.subtasks?.find(st => st.id === lookupId);
-                                                                            console.log('  → Subtask data found:', !!subtaskData);
+                                                                            console.log('  â†’ Subtask data found:', !!subtaskData);
                                                                             if (subtaskData) {
                                                                                 // Create a temporary task object for QuickEdit
                                                                                 const subtaskForEdit = {
@@ -6250,20 +6278,20 @@
                                                                                     taskType: subtaskData.taskType || parentTask.taskType,
                                                                                     project: parentTask.project
                                                                                 };
-                                                                                console.log('🎯 Today: Editing subtask', subtaskForEdit.id, subtaskForEdit.text);
+                                                                                console.log('ðŸŽ¯ Today: Editing subtask', subtaskForEdit.id, subtaskForEdit.text);
                                                                                 setQuickEditTask(subtaskForEdit);
                                                                                 setShowQuickEdit(true);
-                                                                                console.log('  → Modal state set to true');
+                                                                                console.log('  â†’ Modal state set to true');
                                                                             } else {
-                                                                                console.log('  ❌ Subtask not found in parent.subtasks');
-                                                                                console.log('  → Parent subtasks:', parentTask.subtasks?.map(st => st.id));
+                                                                                console.log('  âŒ Subtask not found in parent.subtasks');
+                                                                                console.log('  â†’ Parent subtasks:', parentTask.subtasks?.map(st => st.id));
                                                                             }
                                                                         } else {
-                                                                            console.log('  ❌ Parent task not found');
+                                                                            console.log('  âŒ Parent task not found');
                                                                         }
                                                                     } else {
                                                                         // Regular task
-                                                                        console.log('🎯 Today: Editing task', task.id, task.text);
+                                                                        console.log('ðŸŽ¯ Today: Editing task', task.id, task.text);
                                                                         const originalTask = tasks.find(t => t.id === task.id);
                                                                         if (originalTask) {
                                                                             setQuickEditTask({...originalTask});
@@ -6314,7 +6342,7 @@
                         <div>
                             <div className="flex items-center justify-between mb-3">
                                 <h3 className="text-lg font-semibold">
-                                    📊 All Tasks Planning Area
+                                    ðŸ“Š All Tasks Planning Area
                                 </h3>
                                 <div className="flex items-center gap-2 text-sm">
                                     <span className="text-gray-600">Group by:</span>
@@ -6342,7 +6370,7 @@
                                             if (idx % Math.ceil(dateRange.length / 10) === 0 || date === today) {
                                                 return (
                                                     <div key={date} className={`${date === today ? 'font-bold text-blue-600' : ''}`}>
-                                                        {date === today ? '📍 TODAY' : (() => {
+                                                        {date === today ? 'ðŸ“ TODAY' : (() => {
                                                             const d = new Date(date);
                                                             const day = d.getDate();
                                                             const month = d.toLocaleDateString('en-US', {month: 'short'});
@@ -6456,7 +6484,7 @@
                                                                     </button>
                                                                     
                                                                     <span className="text-gray-600 truncate" title={subtask.text}>
-                                                                        └ {subtask.text}
+                                                                        â”” {subtask.text}
                                                                     </span>
                                                                 </div>
                                                                 <div className="flex-1 relative bg-gray-100 rounded" style={{minHeight: '24px'}}>
@@ -6503,7 +6531,7 @@
                                                                     project: task.project
                                                                 };
                                                                 
-                                                                console.log('✅ Opening QuickEdit for new subtask');
+                                                                console.log('âœ… Opening QuickEdit for new subtask');
                                                                 setQuickEditTask(subtaskForEdit);
                                                                 setShowQuickEdit(true);
                                                             }}
@@ -6600,7 +6628,7 @@
                                     <div className="flex justify-between items-center mb-3">
                                         <h3 className="text-lg font-bold">{persona}</h3>
                                         <div className="text-sm text-gray-600">
-                                            {completed}/{personaTasks.length} tasks • {totalPoints} points
+                                            {completed}/{personaTasks.length} tasks â€¢ {totalPoints} points
                                         </div>
                                     </div>
                                     
@@ -6692,7 +6720,7 @@
                                                 className="text-xs px-2 py-1 bg-gray-200 hover:bg-gray-300 rounded"
                                                 title="Customize statuses"
                                             >
-                                                ⚙️ Statuses
+                                                âš™ï¸ Statuses
                                             </button>
                                             <div className="text-sm text-gray-600">{project.status}%</div>
                                             <div className="w-32 h-2 bg-gray-200 rounded-full overflow-hidden">
@@ -6739,7 +6767,7 @@
                                                             }
                                                         }}
                                                     >
-                                                        ⋮⋮ {getStatusLabel(status)}
+                                                        â‹®â‹® {getStatusLabel(status)}
                                                         {projectStatuses.length > 1 && (
                                                             <button
                                                                 onClick={() => {
@@ -6750,7 +6778,7 @@
                                                                 }}
                                                                 className="text-red-600 hover:text-red-800"
                                                             >
-                                                                ×
+                                                                Ã—
                                                             </button>
                                                         )}
                                                     </span>
@@ -6871,7 +6899,7 @@
                             const noProjectPseudo = projects.find(p => p.isNoProject);
                             const noProjectStatuses = noProjectPseudo?.statuses || ['not-started', 'in-progress', 'completed'];
                             
-                            console.log('🔍 No Project Section Render:', {
+                            console.log('ðŸ” No Project Section Render:', {
                                 noProjectPseudo,
                                 noProjectStatuses,
                                 editingProjectId,
@@ -6885,7 +6913,7 @@
                                 <div className="bg-white rounded-lg shadow p-4 border-2 border-dashed border-gray-300">
                                     <div className="flex justify-between items-center mb-4">
                                         <div className="flex items-center gap-2">
-                                            <h3 className="text-lg font-bold text-gray-600">📋 No Project</h3>
+                                            <h3 className="text-lg font-bold text-gray-600">ðŸ“‹ No Project</h3>
                                             <span className="text-xs text-gray-500 bg-gray-100 px-2 py-1 rounded">
                                                 {noProjectTasks.length} unassigned {noProjectTasks.length === 1 ? 'task' : 'tasks'}
                                             </span>
@@ -6893,13 +6921,13 @@
                                         <div className="flex items-center gap-2">
                                             <button
                                                 onClick={() => {
-                                                    console.log('⚙️ Statuses button clicked, current editingProjectId:', editingProjectId);
+                                                    console.log('âš™ï¸ Statuses button clicked, current editingProjectId:', editingProjectId);
                                                     setEditingProjectId(editingProjectId === 'no-project' ? null : 'no-project');
                                                 }}
                                                 className="text-xs px-2 py-1 bg-gray-200 hover:bg-gray-300 rounded"
                                                 title="Customize statuses"
                                             >
-                                                ⚙️ Statuses
+                                                âš™ï¸ Statuses
                                             </button>
                                             <div className="text-xs text-gray-500 italic">
                                                 Drag tasks here to remove project assignment
@@ -6938,7 +6966,7 @@
                                                                         const currentStatuses = [...(p.statuses || ['not-started', 'in-progress', 'completed'])];
                                                                         const [moved] = currentStatuses.splice(fromIdx, 1);
                                                                         currentStatuses.splice(toIdx, 0, moved);
-                                                                        console.log('🔄 Reordering statuses:', currentStatuses);
+                                                                        console.log('ðŸ”„ Reordering statuses:', currentStatuses);
                                                                         return {...p, statuses: currentStatuses};
                                                                     }
                                                                     return p;
@@ -6946,7 +6974,7 @@
                                                             }
                                                         }}
                                                     >
-                                                        ⋮⋮ {getStatusLabel(status)}
+                                                        â‹®â‹® {getStatusLabel(status)}
                                                         {noProjectStatuses.length > 1 && (
                                                             <button
                                                                 onClick={() => {
@@ -6954,7 +6982,7 @@
                                                                         if (p.isNoProject) {
                                                                             const currentStatuses = p.statuses || ['not-started', 'in-progress', 'completed'];
                                                                             const newStatuses = currentStatuses.filter((_, i) => i !== idx);
-                                                                            console.log('❌ Removing status at index:', idx, 'new statuses:', newStatuses);
+                                                                            console.log('âŒ Removing status at index:', idx, 'new statuses:', newStatuses);
                                                                             return {...p, statuses: newStatuses};
                                                                         }
                                                                         return p;
@@ -6962,7 +6990,7 @@
                                                                 }}
                                                                 className="text-red-600 hover:text-red-800"
                                                             >
-                                                                ×
+                                                                Ã—
                                                             </button>
                                                         )}
                                                     </span>
@@ -6982,7 +7010,7 @@
                                                             setProjects(prev => prev.map(p => {
                                                                 if (p.isNoProject) {
                                                                     const currentStatuses = p.statuses || ['not-started', 'in-progress', 'completed'];
-                                                                    console.log('🎯 Adding status:', statusId, 'to current:', currentStatuses);
+                                                                    console.log('ðŸŽ¯ Adding status:', statusId, 'to current:', currentStatuses);
                                                                     return {...p, statuses: [...currentStatuses, statusId]};
                                                                 }
                                                                 return p;
@@ -6993,16 +7021,16 @@
                                                 />
                                                 <button
                                                     onClick={() => {
-                                                        console.log('🖱️ Add button clicked, newStatusName:', newStatusName);
+                                                        console.log('ðŸ–±ï¸ Add button clicked, newStatusName:', newStatusName);
                                                         if (newStatusName.trim()) {
                                                             const statusId = newStatusName.toLowerCase().replace(/\s+/g, '-');
-                                                            console.log('📝 Processing add, statusId:', statusId);
+                                                            console.log('ðŸ“ Processing add, statusId:', statusId);
                                                             setProjects(prev => {
-                                                                console.log('🔄 setProjects updater called, prev:', prev);
+                                                                console.log('ðŸ”„ setProjects updater called, prev:', prev);
                                                                 return prev.map(p => {
                                                                     if (p.isNoProject) {
                                                                         const currentStatuses = p.statuses || ['not-started', 'in-progress', 'completed'];
-                                                                        console.log('🎯 Adding status:', statusId, 'to current:', currentStatuses);
+                                                                        console.log('ðŸŽ¯ Adding status:', statusId, 'to current:', currentStatuses);
                                                                         return {...p, statuses: [...currentStatuses, statusId]};
                                                                     }
                                                                     return p;
@@ -7010,7 +7038,7 @@
                                                             });
                                                             setNewStatusName('');
                                                         } else {
-                                                            console.log('⚠️ Cannot add: newStatusName is empty or whitespace');
+                                                            console.log('âš ï¸ Cannot add: newStatusName is empty or whitespace');
                                                         }
                                                     }}
                                                     className="px-3 py-1 bg-indigo-600 text-white rounded text-sm hover:bg-indigo-700"
@@ -7103,7 +7131,7 @@
                         <div className="text-center">
                             <div className="animate-spin rounded-full h-16 w-16 border-b-4 border-indigo-600 mx-auto mb-4"></div>
                             <p className="text-gray-600">Loading Life Ninja...</p>
-                            <p className="text-gray-400 text-sm mt-2">V2.6.3</p>
+                            <p className="text-gray-400 text-sm mt-2">V2.7.0</p>
                         </div>
                     </div>
                 );
@@ -7117,7 +7145,7 @@
                             <div className="text-center mb-8">
                                 <Target className="text-indigo-600 mx-auto mb-4" size={48} />
                                 <h1 className="text-3xl font-bold text-gray-900 mb-2">Life Ninja</h1>
-                                <p className="text-gray-600">V2.6.3 • Email/Password Authentication</p>
+                                <p className="text-gray-600">V2.7.0 â€¢ Email/Password Authentication</p>
                             </div>
                             
                             <div className="mb-6">
@@ -7167,7 +7195,7 @@
                                             type="password"
                                             value={authPassword}
                                             onChange={(e) => setAuthPassword(e.target.value)}
-                                            placeholder="••••••••"
+                                            placeholder="â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢"
                                             className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
                                             onKeyPress={(e) => {
                                                 if (e.key === 'Enter') {
@@ -7179,7 +7207,7 @@
                                     
                                     {authError && (
                                         <div className={`p-3 rounded-lg text-sm ${
-                                            authError.startsWith('✅') 
+                                            authError.startsWith('âœ…') 
                                                 ? 'bg-green-50 text-green-700' 
                                                 : 'bg-red-50 text-red-700'
                                         }`}>
@@ -7198,7 +7226,7 @@
                             </div>
                             
                             <div className="text-center text-sm text-gray-600">
-                                <p className="mb-2">🔒 Secure • 100% Free • Feedback: vikaslk@hotmail.com</p>
+                                <p className="mb-2">ðŸ”’ Secure â€¢ 100% Free â€¢ Feedback: vikaslk@hotmail.com</p>
                                 {authMode === 'signup' && (
                                     <p className="text-xs text-gray-500">You'll receive a verification email after signup</p>
                                 )}
@@ -7228,7 +7256,7 @@
                                 <div className="flex items-center gap-3">
                                     <Target className="text-indigo-600" size={32} />
                                     <h1 className="text-2xl font-bold text-gray-900">Life Ninja</h1>
-                                    <span className="text-xs bg-indigo-100 text-indigo-700 px-2 py-1 rounded font-semibold">V2.6.3</span>
+                                    <span className="text-xs bg-indigo-100 text-indigo-700 px-2 py-1 rounded font-semibold">V2.7.0</span>
                                 </div>
 
                                 <div className="flex items-center gap-4">
@@ -7241,7 +7269,7 @@
                                                 </div>
                                                 <div>
                                                     <div className="text-sm font-semibold text-gray-900">{user.email}</div>
-                                                    <div className="text-xs text-green-600">✓ Synced</div>
+                                                    <div className="text-xs text-green-600">âœ“ Synced</div>
                                                 </div>
                                             </div>
                                             <button
@@ -7330,7 +7358,7 @@
                                             <Upload className="text-yellow-600" size={24} />
                                         </div>
                                         <div className="flex-1">
-                                            <h3 className="font-bold text-yellow-900 mb-1">📤 Sync Your Tasks to Cloud</h3>
+                                            <h3 className="font-bold text-yellow-900 mb-1">ðŸ“¤ Sync Your Tasks to Cloud</h3>
                                             <p className="text-sm text-yellow-800 mb-3">
                                                 You have tasks stored locally. Click below to sync them to the cloud so they're accessible from all your devices!
                                             </p>
@@ -7381,7 +7409,7 @@
                             )}
                             {syncStatus === 'error' && (
                                 <div className="mt-2 p-2 bg-red-50 border border-red-200 rounded-lg flex items-center gap-2">
-                                    <span className="text-sm text-red-700">⚠️ Sync error - will retry automatically</span>
+                                    <span className="text-sm text-red-700">âš ï¸ Sync error - will retry automatically</span>
                                 </div>
                             )}
 
@@ -7578,7 +7606,7 @@
                                                     ));
                                                 }
                                             } catch (error) {
-                                                console.error('❌ Error saving new event:', error);
+                                                console.error('âŒ Error saving new event:', error);
                                             }
                                         }
                                     }
