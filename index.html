@@ -39,7 +39,7 @@
         /* V2.6.3: Prevent layout shifts */
         #root {
             min-height: 100vh;
-            contain: layout style;
+            /* contain removed - breaks drag positioning */
         }
         
         /* Drag and Drop Styles */
@@ -71,22 +71,24 @@
         .calendar-cell { min-height: 100px; }
         .calendar-cell.has-tasks { background-color: rgba(99, 102, 241, 0.05); }
         
-        /* Toast notification */
+        /* Toast notification - V2.6.3: Top center for better mobile visibility */
         .toast {
             position: fixed;
-            bottom: 20px;
-            right: 20px;
+            top: 80px;
+            left: 50%;
+            transform: translateX(-50%);
             background: #1f2937;
             color: white;
             padding: 12px 20px;
             border-radius: 8px;
             box-shadow: 0 4px 6px rgba(0,0,0,0.2);
-            animation: slideIn 0.3s ease-out;
-            z-index: 1000;
+            animation: slideDown 0.3s ease-out;
+            z-index: 9999;
+            max-width: 90vw;
         }
-        @keyframes slideIn {
-            from { transform: translateX(400px); opacity: 0; }
-            to { transform: translateX(0); opacity: 1; }
+        @keyframes slideDown {
+            from { transform: translateX(-50%) translateY(-100px); opacity: 0; }
+            to { transform: translateX(-50%) translateY(0); opacity: 1; }
         }
         
         /* Gantt chart styles */
@@ -1764,6 +1766,9 @@
 
             // ====== TASK MANAGEMENT FUNCTIONS ======
             const createTask = async (taskData) => {
+                // V2.6.3: Extract rapid mode flag BEFORE creating task
+                const wasInRapidMode = taskData._wasInRapidMode || false;
+                
                 // Create temporary task with temp ID
                 const tempId = 'temp_' + Date.now();
                 const newTask = {
@@ -1790,7 +1795,8 @@
                     createdAt: new Date().toISOString(),
                     startedAt: null,
                     completedAt: null,
-                    ...taskData
+                    ...taskData,
+                    _wasInRapidMode: undefined  // Remove internal flag from task object
                 };
                 
                 // Add to local state immediately (optimistic UI)
@@ -1798,8 +1804,7 @@
                 
                 // V2.6.3-TOAST: Show toast for first task or after pause
                 // Only suppress for rapid subsequent tasks
-                const isAlreadyInRapidMode = isCreatingTasksRef.current;
-                if (!isAlreadyInRapidMode) {
+                if (!wasInRapidMode) {
                     showToast('Task created successfully');
                 } else {
                     console.log('🔇 Toast suppressed - rapid entry in progress');
@@ -4573,6 +4578,9 @@
                                             const taskText = newTaskText.trim();
                                             const inputElement = newTaskInputRef.current;
                                             
+                                            // V2.6.3: Check if ALREADY in rapid mode BEFORE setting flag
+                                            const wasInRapidMode = isCreatingTasksRef.current;
+                                            
                                             // Set rapid entry flags
                                             isCreatingTasksRef.current = true;
                                             lastTaskCreationTimeRef.current = Date.now();
@@ -4602,8 +4610,8 @@
                                                 });
                                             }
                                             
-                                            // Create task
-                                            createTask({ text: taskText });
+                                            // Create task - pass rapid mode status
+                                            createTask({ text: taskText, _wasInRapidMode: wasInRapidMode });
                                             
                                             // CRITICAL: Re-focus AFTER createTask causes re-render
                                             // Use ref inside setTimeout to get NEW element after re-render
@@ -4641,6 +4649,9 @@
                                             const taskText = newTaskText.trim();
                                             const inputElement = newTaskInputRef.current;
                                             
+                                            // V2.6.3: Check if ALREADY in rapid mode BEFORE setting flag
+                                            const wasInRapidMode = isCreatingTasksRef.current;
+                                            
                                             // Set rapid entry flags
                                             isCreatingTasksRef.current = true;
                                             lastTaskCreationTimeRef.current = Date.now();
@@ -4670,8 +4681,8 @@
                                                 });
                                             }
                                             
-                                            // Create task
-                                            createTask({ text: taskText });
+                                            // Create task - pass rapid mode status
+                                            createTask({ text: taskText, _wasInRapidMode: wasInRapidMode });
                                             
                                             // CRITICAL: Re-focus AFTER createTask causes re-render
                                             // Use ref inside setTimeout to get NEW element after re-render
