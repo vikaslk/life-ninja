@@ -720,6 +720,7 @@
                         estimated_duration: task.estimatedDuration || 30,
                         status: task.status || 'not-started',
                         priority: task.priority || 'medium',
+                        priority_rating: task.priority_rating !== undefined ? task.priority_rating : 5, // V2.7.0
                         task_type: task.taskType || null,
                         persona: task.persona || null,
                         project: task.project || null,
@@ -847,6 +848,7 @@
                         estimatedDuration: t.estimated_duration,
                         status: t.status,
                         priority: t.priority,
+                        priority_rating: t.priority_rating !== undefined ? t.priority_rating : 5, // V2.7.0
                         taskType: t.task_type,
                         persona: t.persona,
                         project: t.project,
@@ -1057,6 +1059,7 @@
                                     estimatedDuration: payload.new.estimated_duration,
                                     status: payload.new.status,
                                     priority: payload.new.priority,
+                                    priority_rating: payload.new.priority_rating !== undefined ? payload.new.priority_rating : 5, // V2.7.0
                                     taskType: payload.new.task_type,
                                     persona: payload.new.persona,
                                     project: payload.new.project,
@@ -1102,6 +1105,7 @@
                                     estimatedDuration: payload.new.estimated_duration,
                                     status: payload.new.status,
                                     priority: payload.new.priority,
+                                    priority_rating: payload.new.priority_rating !== undefined ? payload.new.priority_rating : 5, // V2.7.0
                                     taskType: payload.new.task_type,
                                     persona: payload.new.persona,
                                     project: payload.new.project,
@@ -1780,7 +1784,7 @@
                     status: 'not-started',
                     taskType: 'consistency',
                     priority: 'medium',
-                    priority_rating: 5, // V2.7.0: Priority rating 0-10 scale
+                    priority_rating: 5, // V2.7.0: Default rating is 5 (medium)
                     persona: personas[0],
                     project: null,
                     scheduledDate: selectedDate,
@@ -3262,6 +3266,9 @@
             // ====== TASK CARD COMPONENT ======
             // V2.6.0-OPTIMIZE: Memoized to prevent unnecessary re-renders
             const TaskCard = React.memo(({ task, location = 'list', showDate = false }) => {
+                // V2.7.0: Click delay for distinguishing single vs double-click
+                const clickTimer = useRef(null);
+                const clickCount = useRef(0);
                 const [newSubtaskText, setNewSubtaskText] = useState('');
                 // Bug 2 Complete Fix: Local state for all text inputs to prevent scroll/focus loss
                 const [localText, setLocalText] = useState(task.text || '');
@@ -3424,7 +3431,24 @@
                                 <div 
                                     className="flex-1" 
                                     style={{ minWidth: '150px', wordWrap: 'break-word', overflowWrap: 'break-word', cursor: 'pointer' }}
-                                    onClick={() => setExpandedTasks(p => ({ ...p, [task.id]: !p[task.id] }))}
+                                    onClick={(e) => {
+                                        e.stopPropagation();
+                                        clickCount.current += 1;
+                                        
+                                        if (clickCount.current === 1) {
+                                            // First click - wait to see if there's a second
+                                            clickTimer.current = setTimeout(() => {
+                                                // Single click - expand/collapse
+                                                setExpandedTasks(p => ({ ...p, [task.id]: !p[task.id] }));
+                                                clickCount.current = 0;
+                                            }, 300); // 300ms delay
+                                        } else if (clickCount.current === 2) {
+                                            // Double click - open Quick Edit
+                                            clearTimeout(clickTimer.current);
+                                            clickCount.current = 0;
+                                            openQuickEdit();
+                                        }
+                                    }}
                                 >
                                     <p className="text-sm font-medium break-words" style={{ wordBreak: 'break-word' }}>{task.text}</p>
                                     
@@ -3593,9 +3617,24 @@
                                             <label className="text-xs font-semibold">Priority</label>
                                             <select
                                                 value={task.priority}
-                                                onChange={(e) => handleTaskUpdate({ priority: e.target.value })}
+                                                onChange={(e) => {
+                                                    const newPriority = e.target.value;
+                                                    // V2.7.0: Auto-update rating when priority changes
+                                                    const ratingMap = {
+                                                        'non-priority': 0,
+                                                        'low': 2,
+                                                        'medium': 5,
+                                                        'high': 7,
+                                                        'urgent': 10
+                                                    };
+                                                    handleTaskUpdate({ 
+                                                        priority: newPriority,
+                                                        priority_rating: ratingMap[newPriority] || 5
+                                                    });
+                                                }}
                                                 className="w-full px-2 py-1 border rounded text-xs"
                                             >
+                                                <option value="non-priority">Non-priority</option>
                                                 <option value="low">Low</option>
                                                 <option value="medium">Medium</option>
                                                 <option value="high">High</option>
@@ -3603,6 +3642,43 @@
                                             </select>
                                         </div>
                                         
+                                        <div>
+                                            <label className="text-xs font-semibold">Rating (0-10)</label>
+                                            <select
+                                                value={task.priority_rating !== undefined ? task.priority_rating : 5}
+                                                onChange={(e) => {
+                                                    const rating = parseInt(e.target.value);
+                                                    // V2.7.0: Auto-update category when rating changes
+                                                    let newPriority = 'medium';
+                                                    if (rating === 0) newPriority = 'non-priority';
+                                                    else if (rating <= 2) newPriority = 'low';
+                                                    else if (rating <= 5) newPriority = 'medium';
+                                                    else if (rating <= 8) newPriority = 'high';
+                                                    else newPriority = 'urgent';
+                                                    
+                                                    handleTaskUpdate({ 
+                                                        priority_rating: rating,
+                                                        priority: newPriority
+                                                    });
+                                                }}
+                                                className="w-full px-2 py-1 border rounded text-xs"
+                                            >
+                                                <option value="0">0 - Non-priority</option>
+                                                <option value="1">1 - Low</option>
+                                                <option value="2">2 - Low</option>
+                                                <option value="3">3 - Medium</option>
+                                                <option value="4">4 - Medium</option>
+                                                <option value="5">5 - Medium</option>
+                                                <option value="6">6 - High</option>
+                                                <option value="7">7 - High</option>
+                                                <option value="8">8 - High</option>
+                                                <option value="9">9 - Urgent</option>
+                                                <option value="10">10 - Urgent</option>
+                                            </select>
+                                        </div>
+                                    </div>
+                                    
+                                    <div className="grid grid-cols-2 gap-2">
                                         <div>
                                             <label className="text-xs font-semibold">Type</label>
                                             <select
@@ -3615,28 +3691,6 @@
                                                 <option value="maintenance">Maintenance (2pts)</option>
                                             </select>
                                         </div>
-                                    </div>
-
-                                    {/* V2.7.0: Priority Rating (0-10) */}
-                                    <div>
-                                        <label className="text-xs font-semibold">Priority Rating (0-10)</label>
-                                        <select
-                                            value={task.priority_rating !== undefined ? task.priority_rating : 5}
-                                            onChange={(e) => handleTaskUpdate({ priority_rating: parseInt(e.target.value) })}
-                                            className="w-full px-2 py-1 border rounded text-xs"
-                                        >
-                                            <option value="0">0 - Non-priority</option>
-                                            <option value="1">1 - Low</option>
-                                            <option value="2">2 - Low</option>
-                                            <option value="3">3 - Medium</option>
-                                            <option value="4">4 - Medium</option>
-                                            <option value="5">5 - Medium</option>
-                                            <option value="6">6 - High</option>
-                                            <option value="7">7 - High</option>
-                                            <option value="8">8 - High</option>
-                                            <option value="9">9 - Urgent</option>
-                                            <option value="10">10 - Urgent</option>
-                                        </select>
                                     </div>
 
                                     {/* V2.6.3-QUICKEDIT: Status dropdown */}
@@ -7788,9 +7842,25 @@
                                             <label className="block text-sm font-semibold mb-1">Priority</label>
                                             <select 
                                                 value={quickEditTask.priority}
-                                                onChange={(e) => setQuickEditTask({...quickEditTask, priority: e.target.value})}
+                                                onChange={(e) => {
+                                                    const newPriority = e.target.value;
+                                                    // V2.7.0: Auto-update rating when priority changes
+                                                    const ratingMap = {
+                                                        'non-priority': 0,
+                                                        'low': 2,
+                                                        'medium': 5,
+                                                        'high': 7,
+                                                        'urgent': 10
+                                                    };
+                                                    setQuickEditTask({
+                                                        ...quickEditTask, 
+                                                        priority: newPriority,
+                                                        priority_rating: ratingMap[newPriority] || 5
+                                                    });
+                                                }}
                                                 className="w-full px-3 py-2 border rounded-lg text-sm"
                                             >
+                                                <option value="non-priority">Non-priority</option>
                                                 <option value="low">Low</option>
                                                 <option value="medium">Medium</option>
                                                 <option value="high">High</option>
@@ -7798,6 +7868,44 @@
                                             </select>
                                         </div>
                                         
+                                        <div>
+                                            <label className="block text-sm font-semibold mb-1">Rating (0-10)</label>
+                                            <select 
+                                                value={quickEditTask.priority_rating !== undefined ? quickEditTask.priority_rating : 5}
+                                                onChange={(e) => {
+                                                    const rating = parseInt(e.target.value);
+                                                    // V2.7.0: Auto-update category when rating changes
+                                                    let newPriority = 'medium';
+                                                    if (rating === 0) newPriority = 'non-priority';
+                                                    else if (rating <= 2) newPriority = 'low';
+                                                    else if (rating <= 5) newPriority = 'medium';
+                                                    else if (rating <= 8) newPriority = 'high';
+                                                    else newPriority = 'urgent';
+                                                    
+                                                    setQuickEditTask({
+                                                        ...quickEditTask, 
+                                                        priority_rating: rating,
+                                                        priority: newPriority
+                                                    });
+                                                }}
+                                                className="w-full px-3 py-2 border rounded-lg text-sm"
+                                            >
+                                                <option value="0">0 - Non-priority</option>
+                                                <option value="1">1 - Low</option>
+                                                <option value="2">2 - Low</option>
+                                                <option value="3">3 - Medium</option>
+                                                <option value="4">4 - Medium</option>
+                                                <option value="5">5 - Medium</option>
+                                                <option value="6">6 - High</option>
+                                                <option value="7">7 - High</option>
+                                                <option value="8">8 - High</option>
+                                                <option value="9">9 - Urgent</option>
+                                                <option value="10">10 - Urgent</option>
+                                            </select>
+                                        </div>
+                                    </div>
+                                    
+                                    <div className="grid grid-cols-2 gap-3">
                                         <div>
                                             <label className="block text-sm font-semibold mb-1">Status</label>
                                             <select 
@@ -7935,6 +8043,7 @@
                                                 updateSubtask(quickEditTask.parentId, quickEditTask.id, {
                                                     text: quickEditTask.text,
                                                     priority: quickEditTask.priority,
+                                                    priority_rating: quickEditTask.priority_rating, // V2.7.0
                                                     taskType: quickEditTask.taskType,
                                                     persona: quickEditTask.persona,
                                                     timeSlot: quickEditTask.timeSlot,
@@ -7945,9 +8054,14 @@
                                                 showToast('Subtask updated!');
                                             } else {
                                                 // Regular task - save normally
+                                                const updatedTask = quickEditTask;
                                                 setTasks(prev => prev.map(t => 
-                                                    t.id === quickEditTask.id ? quickEditTask : t
+                                                    t.id === updatedTask.id ? updatedTask : t
                                                 ));
+                                                // V2.7.0: Save to Supabase to persist priority_rating
+                                                if (user && updatedTask.supabaseId) {
+                                                    saveTaskToSupabase(updatedTask);
+                                                }
                                                 showToast('Task updated!');
                                             }
                                             setShowQuickEdit(false);
