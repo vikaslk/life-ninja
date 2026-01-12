@@ -193,9 +193,9 @@
         };
         
         console.log('═══════════════════════════════════════════════');
-        console.log('🚀 VERSION: V2.7.1-LIST-INPUT-FIX-JAN12-2230 🚀');
-        console.log('📋 IndividualListView: RAPID ENTRY ACTIVE');
-        console.log('🔧 List Item Focus Fix: ACTIVE');
+        console.log('🚀 VERSION: V2.7.1-REF-FIX-JAN12-2245 🚀');
+        console.log('📋 IndividualListView: USING REFS (NOT STATE)');
+        console.log('🔧 List Item Focus Fix: REFS = NO RESET!');
         console.log('═══════════════════════════════════════════════');
         console.log('🖥️ Device detected:', getDeviceId());
         
@@ -4713,16 +4713,16 @@
 
             // ====== VIEW: INDIVIDUAL LIST VIEW ======
             const IndividualListView = ({ listId }) => {
-                // V2.7.1 FIX: Use ref for rapid entry mode (like tasks)
+                // V2.7.1 FIX: Use REF for rapid entry mode (NOT state - state resets on re-render!)
                 const newTaskInputRef = useRef(null);
+                const isCreatingTasksRef = useRef(false); // ← REF not state!
+                const lastTaskCreationTimeRef = useRef(0);
                 const [newTaskText, setNewTaskText] = useState('');
-                const [isCreatingTasks, setIsCreatingTasks] = useState(false);
-                const lastTaskCreationTime = useRef(0);
                 
                 // V2.7.1 FIX: Aggressive refocus when tasks added during rapid entry
                 useEffect(() => {
-                    console.log('🔄 List tasks changed, rapid mode:', isCreatingTasks);
-                    if (isCreatingTasks && newTaskInputRef.current) {
+                    console.log('🔄 List tasks changed, rapid mode:', isCreatingTasksRef.current);
+                    if (isCreatingTasksRef.current && newTaskInputRef.current) {
                         console.log('🎯 Refocusing list input');
                         newTaskInputRef.current.focus();
                         setTimeout(() => newTaskInputRef.current?.focus(), 0);
@@ -4810,8 +4810,8 @@
                                 onChange={(e) => {
                                     setNewTaskText(e.target.value);
                                     // Extend rapid entry window while typing
-                                    if (isCreatingTasks && e.target.value.trim().length > 0) {
-                                        lastTaskCreationTime.current = Date.now();
+                                    if (isCreatingTasksRef.current && e.target.value.trim().length > 0) {
+                                        lastTaskCreationTimeRef.current = Date.now();
                                     }
                                 }}
                                 onKeyDown={(e) => {
@@ -4823,9 +4823,9 @@
                                         const text = newTaskText.trim();
                                         const inputElement = newTaskInputRef.current;
                                         
-                                        // Set rapid entry mode
-                                        setIsCreatingTasks(true);
-                                        lastTaskCreationTime.current = Date.now();
+                                        // Set rapid entry mode (REF not state!)
+                                        isCreatingTasksRef.current = true;
+                                        lastTaskCreationTimeRef.current = Date.now();
                                         console.log('🏃 Rapid mode: true');
                                         
                                         // Clear SYNCHRONOUSLY with flushSync
@@ -4854,10 +4854,10 @@
                                         
                                         // Exit rapid mode after delay
                                         setTimeout(() => {
-                                            const timeSince = Date.now() - lastTaskCreationTime.current;
+                                            const timeSince = Date.now() - lastTaskCreationTimeRef.current;
                                             if (timeSince >= 4000) {
                                                 console.log('🏁 Exiting rapid mode');
-                                                setIsCreatingTasks(false);
+                                                isCreatingTasksRef.current = false;
                                             }
                                         }, 4000);
                                     }
