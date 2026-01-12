@@ -1156,7 +1156,19 @@
                         }
                     )
                     .subscribe((status) => {
-                        console.log('📡 Tasks subscription status:', status);
+                        const timestamp = new Date().toISOString();
+                        console.log(`📡 [${timestamp}] Tasks subscription status:`, status);
+                        
+                        // V2.7.0: Detailed diagnostics
+                        if (status === 'SUBSCRIBED') {
+                            console.log('✅ Real-time sync CONNECTED');
+                        } else if (status === 'CHANNEL_ERROR') {
+                            console.error('❌ Real-time sync ERROR - connection lost!');
+                        } else if (status === 'TIMED_OUT') {
+                            console.warn('⏱️ Real-time sync TIMEOUT - reconnecting...');
+                        } else if (status === 'CLOSED') {
+                            console.warn('🔌 Real-time sync CLOSED - connection ended');
+                        }
                     });
                 
                 // Subscribe to events table changes
@@ -1243,12 +1255,39 @@
                         }
                     )
                     .subscribe((status) => {
-                        console.log('📡 Events subscription status:', status);
+                        const timestamp = new Date().toISOString();
+                        console.log(`📡 [${timestamp}] Events subscription status:`, status);
+                        
+                        // V2.7.0: Detailed diagnostics
+                        if (status === 'SUBSCRIBED') {
+                            console.log('✅ Events sync CONNECTED');
+                        } else if (status === 'CHANNEL_ERROR') {
+                            console.error('❌ Events sync ERROR - connection lost!');
+                        } else if (status === 'TIMED_OUT') {
+                            console.warn('⏱️ Events sync TIMEOUT - reconnecting...');
+                        } else if (status === 'CLOSED') {
+                            console.warn('🔌 Events sync CLOSED - connection ended');
+                        }
                     });
+                
+                // V2.7.0: Connection health monitoring
+                const healthCheck = setInterval(() => {
+                    const now = new Date().toISOString();
+                    console.log(`💓 [${now}] Connection heartbeat - monitoring active`);
+                    
+                    // Check if subscriptions are still active
+                    if (tasksSubscription.state !== 'joined') {
+                        console.warn(`⚠️ Tasks subscription state: ${tasksSubscription.state}`);
+                    }
+                    if (eventsSubscription.state !== 'joined') {
+                        console.warn(`⚠️ Events subscription state: ${eventsSubscription.state}`);
+                    }
+                }, 60000); // Check every 60 seconds
                 
                 // Cleanup subscriptions on unmount
                 return () => {
                     console.log('🔌 Unsubscribing from real-time channels');
+                    clearInterval(healthCheck);
                     tasksSubscription.unsubscribe();
                     eventsSubscription.unsubscribe();
                 };
@@ -2005,12 +2044,15 @@
                 showToast('Task deleted', true);
             };
 
-            const duplicateTask = (taskId) => {
+            const duplicateTask = async (taskId) => {
                 const task = tasks.find(t => t.id === taskId);
                 if (task) {
+                    // V2.7.0 FIX: Create completely new task with new Supabase ID
+                    const tempId = 'temp_' + Date.now();
                     const duplicate = {
                         ...task,
-                        id: Date.now(),
+                        id: tempId,
+                        supabaseId: undefined, // V2.7.0: Remove old Supabase ID so new one is created
                         text: task.text + ' (Copy)',
                         status: 'not-started',
                         createdAt: new Date().toISOString(),
@@ -2024,8 +2066,28 @@
                             completedAt: null
                         }))
                     };
+                    
+                    // Add to local state immediately
                     setTasks(prev => [...prev, duplicate]);
                     showToast('Task duplicated');
+                    
+                    // V2.7.0: Save to Supabase to get real ID
+                    if (user && !isLoadingFromSupabase) {
+                        try {
+                            const savedTask = await saveTaskToSupabase(duplicate);
+                            if (savedTask && savedTask.id) {
+                                // Replace temp task with task using Supabase ID
+                                setTasks(prev => prev.map(t => 
+                                    t.id === tempId 
+                                        ? { ...t, id: savedTask.id, supabaseId: savedTask.id }
+                                        : t
+                                ));
+                                console.log('✅ Duplicate task saved to Supabase with new ID:', savedTask.id);
+                            }
+                        } catch (error) {
+                            console.error('❌ Error saving duplicate task:', error);
+                        }
+                    }
                 }
             };
 
@@ -3307,6 +3369,7 @@
                 const openQuickEdit = () => {
                     console.log('✨ Opening Quick Edit for:', task.text);
                     setQuickEditTask({...task});
+                    setShowQuickEdit(true); // V2.7.0 FIX: Actually show the modal!
                 };
                 
                 // V2.6.3-QUICKEDIT: Double-click handler (PC)
@@ -3449,7 +3512,7 @@
                                                     setExpandedTasks(p => ({ ...p, [task.id]: !p[task.id] }));
                                                 }
                                                 clickCount.current = 0;
-                                            }, 200); // 200ms delay (reduced from 250ms)
+                                            }, 160); // 160ms delay (reduced for snappier feel)
                                         } else if (clickCount.current === 2) {
                                             // Second click - this is a double-click
                                             console.log('⚡ Double-click detected: Opening Quick Edit');
