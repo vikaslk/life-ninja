@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Life Ninja V2.7.1 (Email/Password Auth)</title>
+    <title>Life Ninja V2.7.1 FIXED (Email/Password Auth)</title>
     <script src="https://cdn.tailwindcss.com"></script>
     
     <script crossorigin src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
@@ -605,11 +605,13 @@
                     console.log('🚪 Logging out...');
                     await supabase.auth.signOut();
                     
-                    // Clear all sync flags
+                    // V2.7.1 FIX: Clear ALL sync flags and local data
                     localStorage.removeItem('ln_has_synced_to_supabase');
                     localStorage.removeItem('ln_has_synced_events_to_supabase');
+                    localStorage.removeItem('ln_has_synced_lists_to_supabase');
+                    localStorage.removeItem('ln_customLists'); // Clear local lists
                     
-                    console.log('✅ Logged out successfully');
+                    console.log('✅ Logged out successfully, cleared all local data');
                     
                     // Force full page reload (more aggressive than window.location.reload())
                     window.location.href = window.location.href;
@@ -1647,29 +1649,24 @@
                         createdAt: l.created_at
                     }));
                     
-                    // Use Supabase as single source of truth
+                    // V2.7.1 FIX: Use Supabase as single source of truth
+                    // Always replace local state with Supabase data
                     setCustomLists(supabaseLists);
-                    
-                    // Mark that we've synced lists successfully
-                    localStorage.setItem('ln_has_synced_lists_to_supabase', 'true');
-                    setHasListsSynced(true);
+                    console.log('✅ Lists loaded, Supabase is source of truth');
                     
                 } catch (error) {
                     console.error('❌ Unexpected error loading lists:', error);
                 }
             };
             
-            // V2.7.1: Track if lists have been synced
-            const [hasListsSynced, setHasListsSynced] = useState(
-                localStorage.getItem('ln_has_synced_lists_to_supabase') === 'true'
-            );
-            
             // V2.7.1: Load lists from Supabase on mount
+            // FIX: Always load from Supabase when user logs in (Supabase is single source of truth)
             useEffect(() => {
-                if (user && !hasListsSynced) {
+                if (user) {
+                    console.log('🔄 Loading lists from Supabase (user logged in)');
                     loadListsFromSupabase();
                 }
-            }, [user, hasListsSynced]);
+            }, [user]);
             
             // V2.7.1: Subscribe to custom_lists real-time changes
             useEffect(() => {
@@ -1819,10 +1816,7 @@
                 }
             }, []); // Run once on mount
             
-            const [customLists, setCustomLists] = useStickyState([
-                {id: Date.now(), name: 'Research', tasks: []},
-                {id: Date.now() + 1, name: 'Purchase Research', tasks: []}
-            ], 'ln_customLists');
+            const [customLists, setCustomLists] = useStickyState([], 'ln_customLists');
 
             // UI state
             const [searchQuery, setSearchQuery] = useState('');
@@ -2712,6 +2706,29 @@
                 // V2.7.1: Delete from Supabase
                 if (user && !isLoadingFromSupabase) {
                     await deleteListFromSupabase(list);
+                }
+            };
+            
+            // V2.7.1 NEW: Rename list
+            const handleRenameList = async (listId) => {
+                const list = customLists.find(l => l.id === listId);
+                if (!list) return;
+                
+                const newName = prompt('Rename list:', list.name);
+                if (!newName || newName.trim() === '' || newName === list.name) return;
+                
+                const updatedList = { ...list, name: newName.trim() };
+                
+                // Update local state
+                setCustomLists(prev => prev.map(l => 
+                    l.id === listId ? updatedList : l
+                ));
+                
+                showToast(`List renamed to "${newName.trim()}"`);
+                
+                // Save to Supabase
+                if (user && !isLoadingFromSupabase) {
+                    await saveListToSupabase(updatedList);
                 }
             };
 
@@ -8528,13 +8545,22 @@
                                                     {list.tasks.length} task{list.tasks.length !== 1 ? 's' : ''}
                                                 </div>
                                             </div>
-                                            <button 
-                                                onClick={() => handleDeleteList(list.id)}
-                                                className="p-2 text-red-600 hover:bg-red-50 rounded transition-colors"
-                                                title="Delete list"
-                                            >
-                                                <Trash2 size={18} />
-                                            </button>
+                                            <div className="flex gap-2">
+                                                <button 
+                                                    onClick={() => handleRenameList(list.id)}
+                                                    className="p-2 text-blue-600 hover:bg-blue-50 rounded transition-colors"
+                                                    title="Rename list"
+                                                >
+                                                    <Edit2 size={18} />
+                                                </button>
+                                                <button 
+                                                    onClick={() => handleDeleteList(list.id)}
+                                                    className="p-2 text-red-600 hover:bg-red-50 rounded transition-colors"
+                                                    title="Delete list"
+                                                >
+                                                    <Trash2 size={18} />
+                                                </button>
+                                            </div>
                                         </div>
                                     ))}
                                     {customLists.length === 0 && (
