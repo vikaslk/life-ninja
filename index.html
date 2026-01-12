@@ -2690,39 +2690,7 @@
                 }
             };
 
-            const handleAddNewList = async () => {
-                const input = document.getElementById('newListInput');
-                if (!input) return;
-                
-                const name = input.value.trim();
-                if (!name) return;
-                
-                const newList = {
-                    id: Date.now(),
-                    name,
-                    tasks: []
-                };
-                
-                // V2.7.1: Add to local state immediately
-                setCustomLists(prev => [...prev, newList]);
-                input.value = '';
-                
-                // V2.7.1 FIXED: Focus retention - refocus input after operations
-                setTimeout(() => {
-                    const currentInput = document.getElementById('newListInput');
-                    if (currentInput) {
-                        currentInput.focus();
-                    }
-                }, 0);
-                
-                // V2.7.1 FIXED: Show toast without stealing focus
-                showToast(`List "${name}" created`, false);
-                
-                // V2.7.1: Save to Supabase
-                if (user && !isLoadingFromSupabase) {
-                    await saveListToSupabase(newList);
-                }
-            };
+            // V2.7.1: handleAddNewList removed - now handled inside ListsManagementModal component
 
             const handleDeleteList = async (listId) => {
                 const list = customLists.find(l => l.id === listId);
