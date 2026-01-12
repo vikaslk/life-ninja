@@ -1565,11 +1565,17 @@
                     
                     console.log('💾 Saving list to Supabase:', list.name);
                     
+                    // V2.7.1: Track which device created/edited the list
+                    const deviceId = getDeviceId();
+                    const isNewList = !list.supabaseId; // New list if no Supabase ID yet
+                    
                     const listData = {
                         id: list.id,
                         user_id: user.id,
                         name: list.name,
-                        tasks: list.tasks || []
+                        tasks: list.tasks || [],
+                        created_device: isNewList ? deviceId : list.created_device, // Only set on creation
+                        last_edited_device: deviceId // Always update on save
                     };
                     
                     const { data, error } = await supabase
@@ -1644,9 +1650,12 @@
                     // Convert Supabase format to app format
                     const supabaseLists = data.map(l => ({
                         id: l.id,
+                        supabaseId: l.id, // Track Supabase ID
                         name: l.name,
                         tasks: l.tasks || [],
-                        createdAt: l.created_at
+                        createdAt: l.created_at,
+                        created_device: l.created_device, // V2.7.1: Device tracking
+                        last_edited_device: l.last_edited_device // V2.7.1: Device tracking
                     }));
                     
                     // V2.7.1 FIX: Use Supabase as single source of truth
@@ -1690,9 +1699,12 @@
                             if (payload.eventType === 'INSERT') {
                                 const newList = {
                                     id: payload.new.id,
+                                    supabaseId: payload.new.id,
                                     name: payload.new.name,
                                     tasks: payload.new.tasks || [],
-                                    createdAt: payload.new.created_at
+                                    createdAt: payload.new.created_at,
+                                    created_device: payload.new.created_device, // V2.7.1
+                                    last_edited_device: payload.new.last_edited_device // V2.7.1
                                 };
                                 
                                 // Check if list already exists locally
@@ -1710,9 +1722,12 @@
                             if (payload.eventType === 'UPDATE') {
                                 const updatedList = {
                                     id: payload.new.id,
+                                    supabaseId: payload.new.id,
                                     name: payload.new.name,
                                     tasks: payload.new.tasks || [],
-                                    createdAt: payload.new.created_at
+                                    createdAt: payload.new.created_at,
+                                    created_device: payload.new.created_device, // V2.7.1
+                                    last_edited_device: payload.new.last_edited_device // V2.7.1
                                 };
                                 
                                 setCustomLists(prev => {
@@ -2678,7 +2693,17 @@
                 // V2.7.1: Add to local state immediately
                 setCustomLists(prev => [...prev, newList]);
                 input.value = '';
-                showToast(`List "${name}" created`);
+                
+                // V2.7.1 FIXED: Focus retention - refocus input after operations
+                setTimeout(() => {
+                    const currentInput = document.getElementById('newListInput');
+                    if (currentInput) {
+                        currentInput.focus();
+                    }
+                }, 0);
+                
+                // V2.7.1 FIXED: Show toast without stealing focus
+                showToast(`List "${name}" created`, false);
                 
                 // V2.7.1: Save to Supabase
                 if (user && !isLoadingFromSupabase) {
@@ -8533,32 +8558,32 @@
                                     </button>
                                 </div>
                                 
-                                <div className="space-y-2 mb-6 max-h-96 overflow-y-auto">
+                                <div className="space-y-1.5 mb-6 max-h-96 overflow-y-auto">
                                     {customLists.map(list => (
                                         <div 
                                             key={list.id} 
-                                            className="flex justify-between items-center p-3 bg-amber-50 rounded-lg hover:bg-amber-100 transition-colors"
+                                            className="flex justify-between items-center p-2 bg-amber-50 rounded hover:bg-amber-100 transition-colors"
                                         >
                                             <div className="flex-1">
-                                                <div className="font-semibold text-gray-800">{list.name}</div>
-                                                <div className="text-sm text-gray-600">
+                                                <div className="text-sm font-medium text-gray-800">{list.name}</div>
+                                                <div className="text-xs text-gray-500">
                                                     {list.tasks.length} task{list.tasks.length !== 1 ? 's' : ''}
                                                 </div>
                                             </div>
-                                            <div className="flex gap-2">
+                                            <div className="flex gap-1">
                                                 <button 
                                                     onClick={() => handleRenameList(list.id)}
-                                                    className="p-2 text-blue-600 hover:bg-blue-50 rounded transition-colors"
+                                                    className="p-1.5 text-blue-600 hover:bg-blue-50 rounded transition-colors"
                                                     title="Rename list"
                                                 >
-                                                    <Edit2 size={18} />
+                                                    <Edit2 size={16} />
                                                 </button>
                                                 <button 
                                                     onClick={() => handleDeleteList(list.id)}
-                                                    className="p-2 text-red-600 hover:bg-red-50 rounded transition-colors"
+                                                    className="p-1.5 text-red-600 hover:bg-red-50 rounded transition-colors"
                                                     title="Delete list"
                                                 >
-                                                    <Trash2 size={18} />
+                                                    <Trash2 size={16} />
                                                 </button>
                                             </div>
                                         </div>
