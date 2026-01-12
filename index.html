@@ -3317,8 +3317,8 @@
                 
                 // V2.6.3-QUICKEDIT: Long-press handlers (Mobile)
                 const handleTouchStart = (e) => {
-                    // V2.7.0: Prevent text selection and drag ghost on Android
-                    e.preventDefault();
+                    // V2.7.0: Don't preventDefault - it breaks long-press detection!
+                    // Text selection is prevented via CSS: userSelect: 'none'
                     longPressTimer.current = setTimeout(() => {
                         setIsLongPressing(true);
                         if (navigator.vibrate) navigator.vibrate(50); // Haptic feedback
@@ -3434,25 +3434,38 @@
                                 </div>
                                 <div 
                                     className="flex-1" 
-                                    style={{ minWidth: '150px', wordWrap: 'break-word', overflowWrap: 'break-word', cursor: 'pointer' }}
+                                    style={{ minWidth: '150px', wordWrap: 'break-word', overflowWrap: 'break-word', cursor: 'pointer', userSelect: 'none' }}
                                     onClick={(e) => {
                                         e.stopPropagation();
                                         clickCount.current += 1;
+                                        console.log('👆 Click detected, count:', clickCount.current);
                                         
                                         if (clickCount.current === 1) {
                                             // First click - start timer
                                             clickTimer.current = setTimeout(() => {
                                                 // Timer expired - this was a single click
-                                                setExpandedTasks(p => ({ ...p, [task.id]: !p[task.id] }));
+                                                if (clickCount.current === 1) {
+                                                    console.log('📖 Single-click: Expanding task');
+                                                    setExpandedTasks(p => ({ ...p, [task.id]: !p[task.id] }));
+                                                }
                                                 clickCount.current = 0;
-                                            }, 250); // 250ms delay to detect double-click
+                                            }, 200); // 200ms delay (reduced from 250ms)
                                         } else if (clickCount.current === 2) {
                                             // Second click - this is a double-click
+                                            console.log('⚡ Double-click detected: Opening Quick Edit');
                                             clearTimeout(clickTimer.current);
                                             clickCount.current = 0;
                                             openQuickEdit();
+                                        } else {
+                                            // More than 2 clicks - reset
+                                            console.log('🔄 Multiple clicks, resetting');
+                                            clearTimeout(clickTimer.current);
+                                            clickCount.current = 0;
                                         }
                                     }}
+                                    onTouchStart={handleTouchStart}
+                                    onTouchEnd={handleTouchEnd}
+                                    onTouchMove={handleTouchMove}
                                 >
                                     <p className="text-sm font-medium break-words" style={{ wordBreak: 'break-word' }}>{task.text}</p>
                                     
