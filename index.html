@@ -3282,6 +3282,10 @@
                 const longPressTimer = useRef(null);
                 const [isLongPressing, setIsLongPressing] = useState(false);
                 
+                // V2.7.0: Click detection for double-click
+                const clickTimer = useRef(null);
+                const clickCount = useRef(0);
+                
                 // Update local state when task changes (e.g., from external update)
                 useEffect(() => {
                     setLocalText(task.text || '');
@@ -3431,8 +3435,24 @@
                                 <div 
                                     className="flex-1" 
                                     style={{ minWidth: '150px', wordWrap: 'break-word', overflowWrap: 'break-word', cursor: 'pointer' }}
-                                    onClick={() => setExpandedTasks(p => ({ ...p, [task.id]: !p[task.id] }))}
-                                    onDoubleClick={handleDoubleClick}
+                                    onClick={(e) => {
+                                        e.stopPropagation();
+                                        clickCount.current += 1;
+                                        
+                                        if (clickCount.current === 1) {
+                                            // First click - start timer
+                                            clickTimer.current = setTimeout(() => {
+                                                // Timer expired - this was a single click
+                                                setExpandedTasks(p => ({ ...p, [task.id]: !p[task.id] }));
+                                                clickCount.current = 0;
+                                            }, 250); // 250ms delay to detect double-click
+                                        } else if (clickCount.current === 2) {
+                                            // Second click - this is a double-click
+                                            clearTimeout(clickTimer.current);
+                                            clickCount.current = 0;
+                                            openQuickEdit();
+                                        }
+                                    }}
                                 >
                                     <p className="text-sm font-medium break-words" style={{ wordBreak: 'break-word' }}>{task.text}</p>
                                     
@@ -3613,7 +3633,7 @@
                                                     };
                                                     handleTaskUpdate({ 
                                                         priority: newPriority,
-                                                        priority_rating: ratingMap[newPriority] || 5
+                                                        priority_rating: ratingMap[newPriority] !== undefined ? ratingMap[newPriority] : 5
                                                     });
                                                 }}
                                                 className="w-full px-2 py-1 border rounded text-xs"
@@ -3962,7 +3982,7 @@
                                                                                     };
                                                                                     updateSubtask(task.id, subtask.id, { 
                                                                                         priority: newPriority,
-                                                                                        priority_rating: ratingMap[newPriority] || 5
+                                                                                        priority_rating: ratingMap[newPriority] !== undefined ? ratingMap[newPriority] : 5
                                                                                     });
                                                                                 }}
                                                                                 className="w-full px-2 py-1 border rounded text-xs"
@@ -4035,6 +4055,40 @@
                                                                         >
                                                                             {personas.map(p => <option key={p} value={p}>{p}</option>)}
                                                                         </select>
+                                                                    </div>
+                                                                    
+                                                                    <div className="grid grid-cols-3 gap-2">
+                                                                        <div>
+                                                                            <label className="text-xs font-semibold block mb-1">Duration (min)</label>
+                                                                            <input
+                                                                                type="number"
+                                                                                value={subtask.estimatedDuration || 30}
+                                                                                onChange={(e) => updateSubtask(task.id, subtask.id, { estimatedDuration: parseInt(e.target.value) || 30 })}
+                                                                                className="w-full px-2 py-1 border rounded text-xs"
+                                                                                min="5"
+                                                                                step="5"
+                                                                            />
+                                                                        </div>
+                                                                        
+                                                                        <div>
+                                                                            <label className="text-xs font-semibold block mb-1">Scheduled</label>
+                                                                            <input
+                                                                                type="date"
+                                                                                value={subtask.scheduledDate || ''}
+                                                                                onChange={(e) => updateSubtask(task.id, subtask.id, { scheduledDate: e.target.value })}
+                                                                                className="w-full px-2 py-1 border rounded text-xs"
+                                                                            />
+                                                                        </div>
+                                                                        
+                                                                        <div>
+                                                                            <label className="text-xs font-semibold block mb-1">Due Date</label>
+                                                                            <input
+                                                                                type="date"
+                                                                                value={subtask.dueDate || ''}
+                                                                                onChange={(e) => updateSubtask(task.id, subtask.id, { dueDate: e.target.value })}
+                                                                                className="w-full px-2 py-1 border rounded text-xs"
+                                                                            />
+                                                                        </div>
                                                                     </div>
                                                                     
                                                                     <div>
@@ -7891,7 +7945,7 @@
                                                     setQuickEditTask({
                                                         ...quickEditTask, 
                                                         priority: newPriority,
-                                                        priority_rating: ratingMap[newPriority] || 5
+                                                        priority_rating: ratingMap[newPriority] !== undefined ? ratingMap[newPriority] : 5
                                                     });
                                                 }}
                                                 className="w-full px-3 py-2 border rounded-lg text-sm"
