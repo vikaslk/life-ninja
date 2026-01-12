@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Life Ninja V2.7.0 (Email/Password Auth)</title>
+    <title>Life Ninja V2.7.1 (Email/Password Auth)</title>
     <script src="https://cdn.tailwindcss.com"></script>
     
     <script crossorigin src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
@@ -1551,6 +1551,218 @@
                 label: formatTimeAMPM(slot)
             }));
             
+            // ====== V2.7.1-LISTSYNC: CUSTOM LISTS SYNC FUNCTIONS ======
+            
+            // Save a single list to Supabase
+            const saveListToSupabase = async (list) => {
+                if (!user) return;
+                if (isLoadingFromSupabase) return; // Don't save while loading!
+                
+                try {
+                    setSyncStatus('syncing');
+                    
+                    console.log('💾 Saving list to Supabase:', list.name);
+                    
+                    const listData = {
+                        id: list.id,
+                        user_id: user.id,
+                        name: list.name,
+                        tasks: list.tasks || []
+                    };
+                    
+                    const { data, error } = await supabase
+                        .from('custom_lists')
+                        .upsert(listData, {
+                            onConflict: 'id'
+                        })
+                        .select()
+                        .single();
+                    
+                    if (error) {
+                        console.error('❌ Error saving list:', error);
+                        setSyncStatus('error');
+                        return null;
+                    }
+                    
+                    console.log('✅ List saved:', data);
+                    setSyncStatus('synced');
+                    return data;
+                } catch (error) {
+                    console.error('❌ Unexpected error saving list:', error);
+                    setSyncStatus('error');
+                    return null;
+                }
+            };
+            
+            // Delete a list from Supabase
+            const deleteListFromSupabase = async (list) => {
+                if (!user || !list) return;
+                if (isLoadingFromSupabase) return;
+                
+                try {
+                    console.log('🗑️ Deleting list from Supabase:', list.name);
+                    
+                    const { error } = await supabase
+                        .from('custom_lists')
+                        .delete()
+                        .eq('id', list.id)
+                        .eq('user_id', user.id);
+                    
+                    if (error) {
+                        console.error('❌ Error deleting list:', error);
+                        return;
+                    }
+                    
+                    console.log('✅ List deleted from Supabase');
+                } catch (error) {
+                    console.error('❌ Unexpected error deleting list:', error);
+                }
+            };
+            
+            // Load all lists from Supabase
+            const loadListsFromSupabase = async () => {
+                if (!user) return;
+                
+                try {
+                    console.log('📥 Loading lists from Supabase...');
+                    
+                    const { data, error } = await supabase
+                        .from('custom_lists')
+                        .select('*')
+                        .eq('user_id', user.id)
+                        .order('created_at', { ascending: true });
+                    
+                    if (error) {
+                        console.error('❌ Error loading lists:', error);
+                        return;
+                    }
+                    
+                    console.log('✅ Loaded', data.length, 'lists from Supabase');
+                    
+                    // Convert Supabase format to app format
+                    const supabaseLists = data.map(l => ({
+                        id: l.id,
+                        name: l.name,
+                        tasks: l.tasks || [],
+                        createdAt: l.created_at
+                    }));
+                    
+                    // Use Supabase as single source of truth
+                    setCustomLists(supabaseLists);
+                    
+                    // Mark that we've synced lists successfully
+                    localStorage.setItem('ln_has_synced_lists_to_supabase', 'true');
+                    setHasListsSynced(true);
+                    
+                } catch (error) {
+                    console.error('❌ Unexpected error loading lists:', error);
+                }
+            };
+            
+            // V2.7.1: Track if lists have been synced
+            const [hasListsSynced, setHasListsSynced] = useState(
+                localStorage.getItem('ln_has_synced_lists_to_supabase') === 'true'
+            );
+            
+            // V2.7.1: Load lists from Supabase on mount
+            useEffect(() => {
+                if (user && !hasListsSynced) {
+                    loadListsFromSupabase();
+                }
+            }, [user, hasListsSynced]);
+            
+            // V2.7.1: Subscribe to custom_lists real-time changes
+            useEffect(() => {
+                if (!user) return;
+                
+                console.log('📡 V2.7.1: Setting up custom_lists real-time subscription');
+                
+                const listsSubscription = supabase
+                    .channel('custom-lists-changes')
+                    .on(
+                        'postgres_changes',
+                        {
+                            event: '*',
+                            schema: 'public',
+                            table: 'custom_lists',
+                            filter: `user_id=eq.${user.id}`
+                        },
+                        (payload) => {
+                            console.log('📡 Custom lists change detected:', payload);
+                            
+                            if (payload.eventType === 'INSERT') {
+                                const newList = {
+                                    id: payload.new.id,
+                                    name: payload.new.name,
+                                    tasks: payload.new.tasks || [],
+                                    createdAt: payload.new.created_at
+                                };
+                                
+                                // Check if list already exists locally
+                                setCustomLists(prev => {
+                                    const exists = prev.some(l => l.id === newList.id);
+                                    if (exists) {
+                                        console.log('⏭️ List already exists locally, skipping INSERT');
+                                        return prev;
+                                    }
+                                    console.log('➕ Adding new list from real-time:', newList.name);
+                                    return [...prev, newList];
+                                });
+                            }
+                            
+                            if (payload.eventType === 'UPDATE') {
+                                const updatedList = {
+                                    id: payload.new.id,
+                                    name: payload.new.name,
+                                    tasks: payload.new.tasks || [],
+                                    createdAt: payload.new.created_at
+                                };
+                                
+                                setCustomLists(prev => {
+                                    const index = prev.findIndex(l => l.id === updatedList.id);
+                                    if (index === -1) {
+                                        console.log('⏭️ List not found locally, skipping UPDATE');
+                                        return prev;
+                                    }
+                                    
+                                    console.log('📝 Updating list from real-time:', updatedList.name);
+                                    const newLists = [...prev];
+                                    newLists[index] = updatedList;
+                                    return newLists;
+                                });
+                            }
+                            
+                            if (payload.eventType === 'DELETE') {
+                                const deletedId = payload.old.id;
+                                setCustomLists(prev => {
+                                    console.log('🗑️ Deleting list from real-time:', deletedId);
+                                    return prev.filter(l => l.id !== deletedId);
+                                });
+                            }
+                        }
+                    )
+                    .subscribe((status) => {
+                        const timestamp = new Date().toISOString();
+                        console.log(`📡 [${timestamp}] Lists subscription status:`, status);
+                        
+                        if (status === 'SUBSCRIBED') {
+                            console.log('✅ Lists sync CONNECTED');
+                        } else if (status === 'CHANNEL_ERROR') {
+                            console.error('❌ Lists sync ERROR - connection lost!');
+                        } else if (status === 'TIMED_OUT') {
+                            console.warn('⏱️ Lists sync TIMEOUT - reconnecting...');
+                        } else if (status === 'CLOSED') {
+                            console.warn('🔌 Lists sync CLOSED - connection ended');
+                        }
+                    });
+                
+                // Cleanup on unmount
+                return () => {
+                    console.log('🔌 Unsubscribing from lists channel');
+                    listsSubscription.unsubscribe();
+                };
+            }, [user]);
+            
             // ====== STATE MANAGEMENT ======
             const [currentView, setCurrentView] = useState('list');
             const [selectedDate, setSelectedDate] = useState(formatDate(new Date()));
@@ -2023,12 +2235,21 @@
                 showToast('Task moved down', false);
             };
 
-            const updateListTask = (listId, taskId, updates) => {
-                setCustomLists(prev => prev.map(list =>
-                    list.id === listId
-                        ? { ...list, tasks: list.tasks.map(t => t.id === taskId ? { ...t, ...updates } : t) }
-                        : list
-                ));
+            const updateListTask = async (listId, taskId, updates) => {
+                // V2.7.1: Update local state and capture updated list
+                let updatedList = null;
+                setCustomLists(prev => prev.map(list => {
+                    if (list.id === listId) {
+                        updatedList = { ...list, tasks: list.tasks.map(t => t.id === taskId ? { ...t, ...updates } : t) };
+                        return updatedList;
+                    }
+                    return list;
+                }));
+                
+                // V2.7.1: Save updated list to Supabase
+                if (user && !isLoadingFromSupabase && updatedList) {
+                    await saveListToSupabase(updatedList);
+                }
             };
 
             const deleteTask = (taskId) => {
@@ -2352,7 +2573,7 @@
             };
 
             // ====== LISTS HANDLERS ======
-            const handleAddToList = (listId, text) => {
+            const handleAddToList = async (listId, text) => {
                 if (!text?.trim()) return;
                 
                 const newTask = {
@@ -2360,6 +2581,7 @@
                     text: text.trim(),
                     status: 'not-started',
                     priority: 'medium',
+                    priority_rating: 5, // V2.7.0: Add priority rating
                     taskType: 'consistency',
                     persona: personas[0],
                     project: null,
@@ -2375,30 +2597,50 @@
                     completedAt: null
                 };
                 
-                setCustomLists(prev => prev.map(list => 
-                    list.id === listId 
-                        ? {...list, tasks: [...list.tasks, newTask]}
-                        : list
-                ));
+                // V2.7.1: Update local state
+                let updatedList = null;
+                setCustomLists(prev => prev.map(list => {
+                    if (list.id === listId) {
+                        updatedList = {...list, tasks: [...list.tasks, newTask]};
+                        return updatedList;
+                    }
+                    return list;
+                }));
                 
                 const listName = customLists.find(l => l.id === listId)?.name;
                 showToast(`Task added to ${listName}`);
+                
+                // V2.7.1: Save updated list to Supabase
+                if (user && !isLoadingFromSupabase && updatedList) {
+                    await saveListToSupabase(updatedList);
+                }
             };
 
-            const handleDeleteFromList = (taskId, listId) => {
-                setCustomLists(prev => prev.map(list =>
-                    list.id === listId
-                        ? {...list, tasks: list.tasks.filter(t => t.id !== taskId)}
-                        : list
-                ));
+            const handleDeleteFromList = async (taskId, listId) => {
+                // V2.7.1: Update local state and capture updated list
+                let updatedList = null;
+                setCustomLists(prev => prev.map(list => {
+                    if (list.id === listId) {
+                        updatedList = {...list, tasks: list.tasks.filter(t => t.id !== taskId)};
+                        return updatedList;
+                    }
+                    return list;
+                }));
                 showToast('Task removed from list');
+                
+                // V2.7.1: Save updated list to Supabase
+                if (user && !isLoadingFromSupabase && updatedList) {
+                    await saveListToSupabase(updatedList);
+                }
             };
 
-            const handleToggleListTaskStatus = (taskId, listId) => {
+            const handleToggleListTaskStatus = async (taskId, listId) => {
+                // V2.7.1: Update local state and capture updated list
+                let updatedList = null;
                 setCustomLists(prev => prev.map(list => {
                     if (list.id !== listId) return list;
                     
-                    return {
+                    updatedList = {
                         ...list,
                         tasks: list.tasks.map(task => {
                             if (task.id !== taskId) return task;
@@ -2417,27 +2659,40 @@
                             };
                         })
                     };
+                    return updatedList;
                 }));
+                
+                // V2.7.1: Save updated list to Supabase
+                if (user && !isLoadingFromSupabase && updatedList) {
+                    await saveListToSupabase(updatedList);
+                }
             };
 
-            const handleAddNewList = () => {
+            const handleAddNewList = async () => {
                 const input = document.getElementById('newListInput');
                 if (!input) return;
                 
                 const name = input.value.trim();
                 if (!name) return;
                 
-                setCustomLists(prev => [...prev, {
+                const newList = {
                     id: Date.now(),
                     name,
                     tasks: []
-                }]);
+                };
                 
+                // V2.7.1: Add to local state immediately
+                setCustomLists(prev => [...prev, newList]);
                 input.value = '';
                 showToast(`List "${name}" created`);
+                
+                // V2.7.1: Save to Supabase
+                if (user && !isLoadingFromSupabase) {
+                    await saveListToSupabase(newList);
+                }
             };
 
-            const handleDeleteList = (listId) => {
+            const handleDeleteList = async (listId) => {
                 const list = customLists.find(l => l.id === listId);
                 if (!list) return;
                 
@@ -2447,11 +2702,17 @@
                     }
                 }
                 
+                // V2.7.1: Delete from local state
                 setCustomLists(prev => prev.filter(l => l.id !== listId));
                 if (currentView === `list:${listId}`) {
                     setCurrentView('list');
                 }
                 showToast('List deleted');
+                
+                // V2.7.1: Delete from Supabase
+                if (user && !isLoadingFromSupabase) {
+                    await deleteListFromSupabase(list);
+                }
             };
 
             // ====== STATUS SYSTEM HELPERS ======
@@ -7351,7 +7612,7 @@
                         <div className="text-center">
                             <div className="animate-spin rounded-full h-16 w-16 border-b-4 border-indigo-600 mx-auto mb-4"></div>
                             <p className="text-gray-600">Loading Life Ninja...</p>
-                            <p className="text-gray-400 text-sm mt-2">V2.7.0</p>
+                            <p className="text-gray-400 text-sm mt-2">V2.7.1</p>
                         </div>
                     </div>
                 );
@@ -7365,7 +7626,7 @@
                             <div className="text-center mb-8">
                                 <Target className="text-indigo-600 mx-auto mb-4" size={48} />
                                 <h1 className="text-3xl font-bold text-gray-900 mb-2">Life Ninja</h1>
-                                <p className="text-gray-600">V2.7.0 • Email/Password Authentication</p>
+                                <p className="text-gray-600">V2.7.1 • Email/Password Authentication</p>
                             </div>
                             
                             <div className="mb-6">
@@ -7476,7 +7737,7 @@
                                 <div className="flex items-center gap-3">
                                     <Target className="text-indigo-600" size={32} />
                                     <h1 className="text-2xl font-bold text-gray-900">Life Ninja</h1>
-                                    <span className="text-xs bg-indigo-100 text-indigo-700 px-2 py-1 rounded font-semibold">V2.7.0</span>
+                                    <span className="text-xs bg-indigo-100 text-indigo-700 px-2 py-1 rounded font-semibold">V2.7.1</span>
                                 </div>
 
                                 <div className="flex items-center gap-4">
