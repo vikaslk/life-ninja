@@ -193,9 +193,9 @@
         };
         
         console.log('═══════════════════════════════════════════════');
-        console.log('🚀 VERSION: V2.7.1-DEBUG-JAN12-2200-BUILD 🚀');
-        console.log('📋 ListsManagementModal: AVAILABLE');
-        console.log('🔧 Focus Fix: ACTIVE');
+        console.log('🚀 VERSION: V2.7.1-LIST-INPUT-FIX-JAN12-2230 🚀');
+        console.log('📋 IndividualListView: RAPID ENTRY ACTIVE');
+        console.log('🔧 List Item Focus Fix: ACTIVE');
         console.log('═══════════════════════════════════════════════');
         console.log('🖥️ Device detected:', getDeviceId());
         
@@ -4713,7 +4713,25 @@
 
             // ====== VIEW: INDIVIDUAL LIST VIEW ======
             const IndividualListView = ({ listId }) => {
+                // V2.7.1 FIX: Use ref for rapid entry mode (like tasks)
+                const newTaskInputRef = useRef(null);
                 const [newTaskText, setNewTaskText] = useState('');
+                const [isCreatingTasks, setIsCreatingTasks] = useState(false);
+                const lastTaskCreationTime = useRef(0);
+                
+                // V2.7.1 FIX: Aggressive refocus when tasks added during rapid entry
+                useEffect(() => {
+                    console.log('🔄 List tasks changed, rapid mode:', isCreatingTasks);
+                    if (isCreatingTasks && newTaskInputRef.current) {
+                        console.log('🎯 Refocusing list input');
+                        newTaskInputRef.current.focus();
+                        setTimeout(() => newTaskInputRef.current?.focus(), 0);
+                        setTimeout(() => newTaskInputRef.current?.focus(), 10);
+                        setTimeout(() => newTaskInputRef.current?.focus(), 50);
+                        setTimeout(() => newTaskInputRef.current?.focus(), 100);
+                    }
+                }, [list?.tasks?.length]); // Re-run when task count changes
+                
                 const list = customLists.find(l => l.id === listId);
                 
                 if (!list) {
@@ -4785,14 +4803,63 @@
                         
                         <div className="flex gap-2">
                             <input 
+                                ref={newTaskInputRef}
                                 type="text"
                                 placeholder="Add task to this list..."
                                 value={newTaskText}
-                                onChange={(e) => setNewTaskText(e.target.value)}
-                                onKeyPress={(e) => {
+                                onChange={(e) => {
+                                    setNewTaskText(e.target.value);
+                                    // Extend rapid entry window while typing
+                                    if (isCreatingTasks && e.target.value.trim().length > 0) {
+                                        lastTaskCreationTime.current = Date.now();
+                                    }
+                                }}
+                                onKeyDown={(e) => {
                                     if (e.key === 'Enter' && newTaskText.trim()) {
-                                        handleAddToList(listId, newTaskText);
-                                        setNewTaskText('');
+                                        e.preventDefault();
+                                        e.stopPropagation();
+                                        console.log('🚀 Adding task to list:', newTaskText);
+                                        
+                                        const text = newTaskText.trim();
+                                        const inputElement = newTaskInputRef.current;
+                                        
+                                        // Set rapid entry mode
+                                        setIsCreatingTasks(true);
+                                        lastTaskCreationTime.current = Date.now();
+                                        console.log('🏃 Rapid mode: true');
+                                        
+                                        // Clear SYNCHRONOUSLY with flushSync
+                                        flushSync(() => {
+                                            setNewTaskText('');
+                                        });
+                                        console.log('🧹 Input cleared');
+                                        
+                                        // Keep focus with aggressive attempts
+                                        if (inputElement) {
+                                            console.log('🎯 Starting focus retention');
+                                            inputElement.focus();
+                                            setTimeout(() => inputElement.focus(), 0);
+                                            setTimeout(() => inputElement.focus(), 10);
+                                            setTimeout(() => inputElement.focus(), 20);
+                                            setTimeout(() => inputElement.focus(), 50);
+                                            setTimeout(() => inputElement.focus(), 100);
+                                            requestAnimationFrame(() => {
+                                                inputElement.focus();
+                                                requestAnimationFrame(() => inputElement.focus());
+                                            });
+                                        }
+                                        
+                                        // Add the task
+                                        handleAddToList(listId, text);
+                                        
+                                        // Exit rapid mode after delay
+                                        setTimeout(() => {
+                                            const timeSince = Date.now() - lastTaskCreationTime.current;
+                                            if (timeSince >= 4000) {
+                                                console.log('🏁 Exiting rapid mode');
+                                                setIsCreatingTasks(false);
+                                            }
+                                        }, 4000);
                                     }
                                 }}
                                 className="flex-1 px-4 py-2 border-2 rounded-lg focus:border-amber-500 focus:outline-none"
