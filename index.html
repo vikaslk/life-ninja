@@ -193,9 +193,9 @@
         };
         
         console.log('═══════════════════════════════════════════════');
-        console.log('🚀 VERSION: V2.7.1-REF-FIX-JAN12-2245 🚀');
-        console.log('📋 IndividualListView: USING REFS (NOT STATE)');
-        console.log('🔧 List Item Focus Fix: REFS = NO RESET!');
+        console.log('🚀 VERSION: V2.7.1-500MS-FOCUS-JAN12-2300 🚀');
+        console.log('📋 IndividualListView: 500ms Focus Pattern');
+        console.log('🔧 Extended Timing: Fights Supabase Re-renders!');
         console.log('═══════════════════════════════════════════════');
         console.log('🖥️ Device detected:', getDeviceId());
         
@@ -4713,24 +4713,11 @@
 
             // ====== VIEW: INDIVIDUAL LIST VIEW ======
             const IndividualListView = ({ listId }) => {
-                // V2.7.1 FIX: Use REF for rapid entry mode (NOT state - state resets on re-render!)
+                // V2.7.1 FIX: Use REF for rapid entry mode (like tasks)
                 const newTaskInputRef = useRef(null);
-                const isCreatingTasksRef = useRef(false); // ← REF not state!
+                const isCreatingTasksRef = useRef(false);
                 const lastTaskCreationTimeRef = useRef(0);
                 const [newTaskText, setNewTaskText] = useState('');
-                
-                // V2.7.1 FIX: Aggressive refocus when tasks added during rapid entry
-                useEffect(() => {
-                    console.log('🔄 List tasks changed, rapid mode:', isCreatingTasksRef.current);
-                    if (isCreatingTasksRef.current && newTaskInputRef.current) {
-                        console.log('🎯 Refocusing list input');
-                        newTaskInputRef.current.focus();
-                        setTimeout(() => newTaskInputRef.current?.focus(), 0);
-                        setTimeout(() => newTaskInputRef.current?.focus(), 10);
-                        setTimeout(() => newTaskInputRef.current?.focus(), 50);
-                        setTimeout(() => newTaskInputRef.current?.focus(), 100);
-                    }
-                }, [list?.tasks?.length]); // Re-run when task count changes
                 
                 const list = customLists.find(l => l.id === listId);
                 
@@ -4837,12 +4824,24 @@
                                         // Keep focus with aggressive attempts
                                         if (inputElement) {
                                             console.log('🎯 Starting focus retention');
+                                            // Immediate attempts
                                             inputElement.focus();
                                             setTimeout(() => inputElement.focus(), 0);
                                             setTimeout(() => inputElement.focus(), 10);
                                             setTimeout(() => inputElement.focus(), 20);
                                             setTimeout(() => inputElement.focus(), 50);
+                                            
+                                            // CRITICAL: Continue trying for 500ms (Supabase updates take 200-500ms)
                                             setTimeout(() => inputElement.focus(), 100);
+                                            setTimeout(() => inputElement.focus(), 150);
+                                            setTimeout(() => inputElement.focus(), 200);
+                                            setTimeout(() => inputElement.focus(), 250);
+                                            setTimeout(() => inputElement.focus(), 300);
+                                            setTimeout(() => inputElement.focus(), 350);
+                                            setTimeout(() => inputElement.focus(), 400);
+                                            setTimeout(() => inputElement.focus(), 500);
+                                            
+                                            // Frame-based (syncs with rendering)
                                             requestAnimationFrame(() => {
                                                 inputElement.focus();
                                                 requestAnimationFrame(() => inputElement.focus());
