@@ -1569,7 +1569,10 @@
                 if (isLoadingFromSupabase) return; // Don't save while loading!
                 
                 try {
-                    setSyncStatus('syncing');
+                    // V2.7.1 FIX: Suppress sync status during rapid entry (prevents re-renders)
+                    if (!isCreatingListsRef.current) {
+                        setSyncStatus('syncing');
+                    }
                     
                     console.log('💾 Saving list to Supabase:', list.name);
                     
@@ -1596,16 +1599,23 @@
                     
                     if (error) {
                         console.error('❌ Error saving list:', error);
-                        setSyncStatus('error');
+                        if (!isCreatingListsRef.current) {
+                            setSyncStatus('error');
+                        }
                         return null;
                     }
                     
                     console.log('✅ List saved:', data);
-                    setSyncStatus('synced');
+                    // V2.7.1 FIX: Suppress sync status during rapid entry
+                    if (!isCreatingListsRef.current) {
+                        setSyncStatus('synced');
+                    }
                     return data;
                 } catch (error) {
                     console.error('❌ Unexpected error saving list:', error);
-                    setSyncStatus('error');
+                    if (!isCreatingListsRef.current) {
+                        setSyncStatus('error');
+                    }
                     return null;
                 }
             };
@@ -4801,13 +4811,16 @@
 
             // ====== LISTS MANAGEMENT MODAL (V2.7.1) ======
             const ListsManagementModal = () => {
+                console.log('🎭 ListsManagementModal rendered');
                 // V2.7.1: Use local state for typing (prevents parent re-renders), persist in ref
                 const [newListText, setNewListText] = useState(() => newListTextRef.current || '');
                 const newListInputRef = useRef(null);
                 
                 // V2.7.1: Aggressive refocus when lists change during rapid entry
                 useEffect(() => {
+                    console.log('🔄 useEffect triggered - lists.length:', customLists.length, 'rapid mode:', isCreatingListsRef.current);
                     if (isCreatingListsRef.current && newListInputRef.current) {
+                        console.log('🎯 Refocusing due to lists change');
                         // Lists changed, we're in rapid entry mode, refocus NOW
                         newListInputRef.current.focus();
                         
@@ -4827,25 +4840,33 @@
                 }, [newListText]);
                 
                 const handleAddList = () => {
+                    console.log('🚀 ListsManagementModal: handleAddList called');
                     const text = newListText.trim();
                     if (!text) return;
                     
+                    console.log('✍️ Creating list:', text);
+                    
                     // V2.7.1: Check if already in rapid mode
                     const wasInRapidMode = isCreatingListsRef.current;
+                    console.log('🏃 Rapid mode before:', wasInRapidMode);
                     
                     // Set rapid entry flags
                     isCreatingListsRef.current = true;
                     lastListCreationTimeRef.current = Date.now();
+                    console.log('🏃 Rapid mode set to: true');
                     
                     // Clear state SYNCHRONOUSLY using flushSync
+                    console.log('🧹 Clearing input with flushSync');
                     flushSync(() => {
                         setNewListText('');
                     });
                     newListTextRef.current = '';
+                    console.log('✅ Input cleared');
                     
                     // Keep focus with multiple aggressive attempts
                     const inputElement = newListInputRef.current;
                     if (inputElement) {
+                        console.log('🎯 Starting focus retention attempts');
                         // Immediate focus
                         inputElement.focus();
                         
@@ -4870,10 +4891,12 @@
                         tasks: []
                     };
                     
+                    console.log('💾 Adding list to state:', newList.name);
                     setCustomLists(prev => [...prev, newList]);
                     
                     // Save to Supabase (async, won't block)
                     if (user && !isLoadingFromSupabase) {
+                        console.log('☁️ Saving to Supabase');
                         saveListToSupabase(newList);
                     }
                     
@@ -4881,6 +4904,7 @@
                     setTimeout(() => {
                         const timeSinceLastCreation = Date.now() - lastListCreationTimeRef.current;
                         if (timeSinceLastCreation >= 4000) {
+                            console.log('🏁 Exiting rapid mode');
                             isCreatingListsRef.current = false;
                         }
                     }, 4000);
