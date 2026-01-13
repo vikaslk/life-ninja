@@ -193,9 +193,9 @@
         };
         
         console.log('═══════════════════════════════════════════════');
-        console.log('🚀 VERSION: V2.7.1-NO-TOAST-JAN12-2315 🚀');
-        console.log('📋 IndividualListView: Toast Suppressed!');
-        console.log('🔧 No Toast = No Focus Steal!');
+        console.log('🚀 VERSION: V2.7.1-INPUT-TOP-JAN13-0500 🚀');
+        console.log('📋 Input at TOP: No scrolling!');
+        console.log('🔧 Stays in place: Perfect focus!');
         console.log('═══════════════════════════════════════════════');
         console.log('🖥️ Device detected:', getDeviceId());
         
@@ -4772,42 +4772,22 @@
                             </div>
                         </div>
                         
-                        <div 
-                            className="space-y-3 mb-6 min-h-[200px] p-4 border-2 border-dashed border-gray-300 rounded-lg"
-                            onDragOver={(e) => handleDragOver(e, 'custom-list', { listId })}
-                            onDragLeave={handleDragLeave}
-                            onDrop={(e) => handleDrop(e, 'custom-list', { listId })}
-                        >
-                            {list.tasks.length === 0 && (
-                                <p className="text-gray-400 text-center py-8">No tasks in this list. Drag tasks here or add below.</p>
-                            )}
-                            {list.tasks.map(task => {
-                                const taskWithListId = {...task, listId, source: 'list', sourceListId: listId};
-                                return (
-                                    <div key={task.id}>
-                                        <TaskCard 
-                                            task={taskWithListId}
-                                            location="list-view"
-                                        />
-                                    </div>
-                                );
-                            })}
-                        </div>
-                        
-                        <div className="flex gap-2">
-                            <input 
-                                ref={newTaskInputRef}
-                                type="text"
-                                placeholder="Add task to this list..."
-                                value={newTaskText}
-                                onChange={(e) => {
-                                    setNewTaskText(e.target.value);
-                                    // Extend rapid entry window while typing
-                                    if (isCreatingTasksRef.current && e.target.value.trim().length > 0) {
-                                        lastTaskCreationTimeRef.current = Date.now();
-                                    }
-                                }}
-                                onKeyDown={(e) => {
+                        {/* V2.7.1 UX FIX: Input at TOP so new items don't push it down */}
+                        <div className="bg-gradient-to-r from-amber-50 to-orange-50 p-4 rounded-lg border-2 border-amber-200 shadow-sm mb-6">
+                            <div className="flex gap-2">
+                                <input 
+                                    ref={newTaskInputRef}
+                                    type="text"
+                                    placeholder="Add task to this list..."
+                                    value={newTaskText}
+                                    onChange={(e) => {
+                                        setNewTaskText(e.target.value);
+                                        // Extend rapid entry window while typing
+                                        if (isCreatingTasksRef.current && e.target.value.trim().length > 0) {
+                                            lastTaskCreationTimeRef.current = Date.now();
+                                        }
+                                    }}
+                                    onKeyDown={(e) => {
                                     if (e.key === 'Enter' && newTaskText.trim()) {
                                         e.preventDefault();
                                         e.stopPropagation();
@@ -4868,6 +4848,7 @@
                                     }
                                 }}
                                 className="flex-1 px-4 py-2 border-2 rounded-lg focus:border-amber-500 focus:outline-none"
+                                autoFocus
                             />
                             <button 
                                 onClick={() => {
@@ -4881,6 +4862,29 @@
                                 <Plus size={20} />
                                 Add
                             </button>
+                            </div>
+                        </div>
+                        
+                        <div 
+                            className="space-y-3 min-h-[200px] p-4 border-2 border-dashed border-gray-300 rounded-lg"
+                            onDragOver={(e) => handleDragOver(e, 'custom-list', { listId })}
+                            onDragLeave={handleDragLeave}
+                            onDrop={(e) => handleDrop(e, 'custom-list', { listId })}
+                        >
+                            {list.tasks.length === 0 && (
+                                <p className="text-gray-400 text-center py-8">No tasks in this list yet. Add items above!</p>
+                            )}
+                            {list.tasks.map(task => {
+                                const taskWithListId = {...task, listId, source: 'list', sourceListId: listId};
+                                return (
+                                    <div key={task.id}>
+                                        <TaskCard 
+                                            task={taskWithListId}
+                                            location="list-view"
+                                        />
+                                    </div>
+                                );
+                            })}
                         </div>
                     </div>
                 );
