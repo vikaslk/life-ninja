@@ -193,9 +193,9 @@
         };
         
         console.log('═══════════════════════════════════════════════');
-        console.log('🚀 VERSION: V2.7.1-INPUT-TOP-JAN13-0500 🚀');
-        console.log('📋 Input at TOP: No scrolling!');
-        console.log('🔧 Stays in place: Perfect focus!');
+        console.log('🚀 VERSION: V2.7.1-DELETION-FIX-JAN13-0530 🚀');
+        console.log('📋 List Items: Sleek & Simple!');
+        console.log('🔧 Deletion Fix: Lock prevents overwrite!');
         console.log('═══════════════════════════════════════════════');
         console.log('🖥️ Device detected:', getDeviceId());
         
@@ -1573,6 +1573,10 @@
                 if (!user) return;
                 if (isLoadingFromSupabase) return; // Don't save while loading!
                 
+                // V2.7.1 CRITICAL: Mark this list as actively being saved
+                activelySavingListRef.current.add(list.id);
+                console.log('🔒 Locking list from real-time updates:', list.id);
+                
                 try {
                     // V2.7.1 FIX: Suppress sync status during rapid entry (prevents re-renders)
                     if (!isCreatingListsRef.current) {
@@ -1615,12 +1619,23 @@
                     if (!isCreatingListsRef.current) {
                         setSyncStatus('synced');
                     }
+                    
+                    // V2.7.1 CRITICAL: Wait a bit for real-time to settle, then unlock
+                    setTimeout(() => {
+                        activelySavingListRef.current.delete(list.id);
+                        console.log('🔓 Unlocking list for real-time updates:', list.id);
+                    }, 1000); // Wait 1 second for real-time to settle
+                    
                     return data;
                 } catch (error) {
                     console.error('❌ Unexpected error saving list:', error);
                     if (!isCreatingListsRef.current) {
                         setSyncStatus('error');
                     }
+                    
+                    // Unlock on error too
+                    activelySavingListRef.current.delete(list.id);
+                    
                     return null;
                 }
             };
@@ -1753,6 +1768,12 @@
                                     last_edited_device: payload.new.last_edited_device // V2.7.1
                                 };
                                 
+                                // V2.7.1 CRITICAL FIX: Don't overwrite if we're actively saving this list!
+                                if (activelySavingListRef.current.has(updatedList.id)) {
+                                    console.log('⏭️ List is being saved, ignoring real-time UPDATE to prevent overwrite');
+                                    return;
+                                }
+                                
                                 setCustomLists(prev => {
                                     const index = prev.findIndex(l => l.id === updatedList.id);
                                     if (index === -1) {
@@ -1811,6 +1832,7 @@
             const newListTextRef = useRef('');
             const isCreatingListsRef = useRef(false);
             const lastListCreationTimeRef = useRef(0);
+            const activelySavingListRef = useRef(new Set()); // Track lists being saved to prevent overwrite
             
             // Task and organizational data
             const [tasks, setTasks] = useStickyState([], 'ln_tasks');
@@ -2648,7 +2670,7 @@
                 if (!isRapidEntry) {
                     const listName = customLists.find(l => l.id === listId)?.name;
                     console.log('📢 Showing toast (not rapid entry)');
-                    showToast(`Task added to ${listName}`);
+                    showToast(`Item added to ${listName}`);
                 } else {
                     console.log('🔇 Toast suppressed (rapid entry mode)');
                 }
@@ -2669,7 +2691,7 @@
                     }
                     return list;
                 }));
-                showToast('Task removed from list');
+                showToast('Item removed from list');
                 
                 // V2.7.1: Save updated list to Supabase
                 if (user && !isLoadingFromSupabase && updatedList) {
@@ -2688,21 +2710,40 @@
                         tasks: list.tasks.map(task => {
                             if (task.id !== taskId) return task;
                             
-                            const newStatus = 
-                                task.status === 'not-started' ? 'in-progress' :
-                                task.status === 'in-progress' ? 'completed' :
-                                'not-started';
+                            // V2.7.1 UX: Simple toggle for list items - just done/not-started
+                            const newStatus = task.status === 'done' ? 'not-started' : 'done';
                             const now = new Date().toISOString();
                             
                             return {
                                 ...task,
                                 status: newStatus,
-                                startedAt: newStatus === 'in-progress' && !task.startedAt ? now : task.startedAt,
-                                completedAt: newStatus === 'completed' ? now : null
+                                completedAt: newStatus === 'done' ? now : null
                             };
                         })
                     };
                     return updatedList;
+                }));
+                
+                // V2.7.1: Save updated list to Supabase
+                if (user && !isLoadingFromSupabase && updatedList) {
+                    await saveListToSupabase(updatedList);
+                }
+            };
+            
+            const handleUpdateListTaskText = async (taskId, listId, newText) => {
+                // V2.7.1: Update list item text
+                let updatedList = null;
+                setCustomLists(prev => prev.map(list => {
+                    if (list.id === listId) {
+                        updatedList = {
+                            ...list, 
+                            tasks: list.tasks.map(t => 
+                                t.id === taskId ? {...t, text: newText} : t
+                            )
+                        };
+                        return updatedList;
+                    }
+                    return list;
                 }));
                 
                 // V2.7.1: Save updated list to Supabase
@@ -2718,7 +2759,7 @@
                 if (!list) return;
                 
                 if (list.tasks.length > 0) {
-                    if (!confirm(`Delete "${list.name}" with ${list.tasks.length} tasks?`)) {
+                    if (!confirm(`Delete "${list.name}" with ${list.tasks.length} items?`)) {
                         return;
                     }
                 }
@@ -4718,6 +4759,79 @@
             };
 
             // ====== VIEW: INDIVIDUAL LIST VIEW ======
+            
+            // V2.7.1 UX: Sleek list item component (simpler than TaskCard)
+            const ListItemCard = ({ item, listId }) => {
+                const [isEditing, setIsEditing] = useState(false);
+                const [editText, setEditText] = useState(item.text);
+                
+                const handleToggle = () => {
+                    handleToggleListTaskStatus(item.id, listId);
+                };
+                
+                const handleDelete = () => {
+                    handleDeleteFromList(item.id, listId);
+                };
+                
+                const handleSaveEdit = () => {
+                    if (editText.trim()) {
+                        handleUpdateListTaskText(item.id, listId, editText.trim());
+                        setIsEditing(false);
+                    }
+                };
+                
+                const isDone = item.status === 'done';
+                
+                return (
+                    <div className="group flex items-center gap-3 px-3 py-2 bg-white hover:bg-gray-50 rounded-md border border-gray-200 transition-all">
+                        {/* Checkbox */}
+                        <button
+                            onClick={handleToggle}
+                            className={`flex-shrink-0 w-5 h-5 rounded border-2 flex items-center justify-center transition-all ${
+                                isDone 
+                                    ? 'bg-green-500 border-green-500' 
+                                    : 'border-gray-300 hover:border-green-400'
+                            }`}
+                        >
+                            {isDone && <Check size={14} className="text-white" />}
+                        </button>
+                        
+                        {/* Text */}
+                        {isEditing ? (
+                            <input
+                                type="text"
+                                value={editText}
+                                onChange={(e) => setEditText(e.target.value)}
+                                onKeyDown={(e) => {
+                                    if (e.key === 'Enter') handleSaveEdit();
+                                    if (e.key === 'Escape') setIsEditing(false);
+                                }}
+                                onBlur={handleSaveEdit}
+                                className="flex-1 px-2 py-1 text-sm border border-blue-300 rounded focus:outline-none focus:border-blue-500"
+                                autoFocus
+                            />
+                        ) : (
+                            <span
+                                onClick={() => setIsEditing(true)}
+                                className={`flex-1 text-sm cursor-pointer ${
+                                    isDone ? 'line-through text-gray-400' : 'text-gray-700'
+                                }`}
+                            >
+                                {item.text}
+                            </span>
+                        )}
+                        
+                        {/* Delete button (shows on hover) */}
+                        <button
+                            onClick={handleDelete}
+                            className="flex-shrink-0 opacity-0 group-hover:opacity-100 p-1 hover:bg-red-50 rounded transition-all"
+                        >
+                            <Trash2 size={14} className="text-red-500" />
+                        </button>
+                    </div>
+                );
+            };
+            
             const IndividualListView = ({ listId }) => {
                 // V2.7.1 FIX: Use REF for rapid entry mode (like tasks)
                 const newTaskInputRef = useRef(null);
@@ -4764,7 +4878,7 @@
                         <div className="flex gap-4 mb-6">
                             <div className="bg-blue-50 px-4 py-2 rounded-lg">
                                 <span className="font-semibold text-blue-700">{list.tasks.length}</span>
-                                <span className="text-blue-600 ml-1">tasks</span>
+                                <span className="text-blue-600 ml-1">items</span>
                             </div>
                             <div className="bg-green-50 px-4 py-2 rounded-lg">
                                 <span className="font-semibold text-green-700">{totalPoints}</span>
@@ -4778,7 +4892,7 @@
                                 <input 
                                     ref={newTaskInputRef}
                                     type="text"
-                                    placeholder="Add task to this list..."
+                                    placeholder="Add item to this list..."
                                     value={newTaskText}
                                     onChange={(e) => {
                                         setNewTaskText(e.target.value);
@@ -4791,7 +4905,7 @@
                                     if (e.key === 'Enter' && newTaskText.trim()) {
                                         e.preventDefault();
                                         e.stopPropagation();
-                                        console.log('🚀 Adding task to list:', newTaskText);
+                                        console.log('🚀 Adding item to list:', newTaskText);
                                         
                                         const text = newTaskText.trim();
                                         const inputElement = newTaskInputRef.current;
@@ -4866,25 +4980,21 @@
                         </div>
                         
                         <div 
-                            className="space-y-3 min-h-[200px] p-4 border-2 border-dashed border-gray-300 rounded-lg"
+                            className="space-y-2 min-h-[200px] p-4 border-2 border-dashed border-gray-300 rounded-lg"
                             onDragOver={(e) => handleDragOver(e, 'custom-list', { listId })}
                             onDragLeave={handleDragLeave}
                             onDrop={(e) => handleDrop(e, 'custom-list', { listId })}
                         >
                             {list.tasks.length === 0 && (
-                                <p className="text-gray-400 text-center py-8">No tasks in this list yet. Add items above!</p>
+                                <p className="text-gray-400 text-center py-8">No items in this list yet. Add items above!</p>
                             )}
-                            {list.tasks.map(task => {
-                                const taskWithListId = {...task, listId, source: 'list', sourceListId: listId};
-                                return (
-                                    <div key={task.id}>
-                                        <TaskCard 
-                                            task={taskWithListId}
-                                            location="list-view"
-                                        />
-                                    </div>
-                                );
-                            })}
+                            {list.tasks.map(task => (
+                                <ListItemCard 
+                                    key={task.id}
+                                    item={task}
+                                    listId={listId}
+                                />
+                            ))}
                         </div>
                     </div>
                 );
@@ -5015,7 +5125,7 @@
                                         <div className="flex-1 min-w-0">
                                             <div className="text-xs font-medium text-gray-700 truncate">{list.name}</div>
                                             <div className="text-[10px] text-gray-500">
-                                                {list.tasks.length} {list.tasks.length === 1 ? 'task' : 'tasks'}
+                                                {list.tasks.length} {list.tasks.length === 1 ? 'item' : 'items'}
                                             </div>
                                         </div>
                                         <div className="flex gap-0.5 ml-2">
