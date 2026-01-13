@@ -193,9 +193,9 @@
         };
         
         console.log('═══════════════════════════════════════════════');
-        console.log('🚀 VERSION: V2.7.1-500MS-FOCUS-JAN12-2300 🚀');
-        console.log('📋 IndividualListView: 500ms Focus Pattern');
-        console.log('🔧 Extended Timing: Fights Supabase Re-renders!');
+        console.log('🚀 VERSION: V2.7.1-NO-TOAST-JAN12-2315 🚀');
+        console.log('📋 IndividualListView: Toast Suppressed!');
+        console.log('🔧 No Toast = No Focus Steal!');
         console.log('═══════════════════════════════════════════════');
         console.log('🖥️ Device detected:', getDeviceId());
         
@@ -2610,7 +2610,7 @@
             };
 
             // ====== LISTS HANDLERS ======
-            const handleAddToList = async (listId, text) => {
+            const handleAddToList = async (listId, text, isRapidEntry = false) => {
                 if (!text?.trim()) return;
                 
                 const newTask = {
@@ -2644,8 +2644,14 @@
                     return list;
                 }));
                 
-                const listName = customLists.find(l => l.id === listId)?.name;
-                showToast(`Task added to ${listName}`);
+                // V2.7.1 FIX: Suppress toast during rapid entry to prevent focus loss
+                if (!isRapidEntry) {
+                    const listName = customLists.find(l => l.id === listId)?.name;
+                    console.log('📢 Showing toast (not rapid entry)');
+                    showToast(`Task added to ${listName}`);
+                } else {
+                    console.log('🔇 Toast suppressed (rapid entry mode)');
+                }
                 
                 // V2.7.1: Save updated list to Supabase
                 if (user && !isLoadingFromSupabase && updatedList) {
@@ -4848,8 +4854,8 @@
                                             });
                                         }
                                         
-                                        // Add the task
-                                        handleAddToList(listId, text);
+                                        // Add the task (pass rapid mode flag to suppress toast)
+                                        handleAddToList(listId, text, true);  // true = isRapidEntry
                                         
                                         // Exit rapid mode after delay
                                         setTimeout(() => {
