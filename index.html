@@ -155,6 +155,7 @@
         const Upload = (props) => React.createElement('svg', {...props, xmlns: "http://www.w3.org/2000/svg", width: props.size || 24, height: props.size || 24, viewBox: "0 0 24 24", fill: "none", stroke: "currentColor", strokeWidth: "2", strokeLinecap: "round", strokeLinejoin: "round"}, React.createElement('path', {d: "M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"}), React.createElement('polyline', {points: "17 8 12 3 7 8"}), React.createElement('line', {x1: "12", y1: "3", x2: "12", y2: "15"}));
         const Download = (props) => React.createElement('svg', {...props, xmlns: "http://www.w3.org/2000/svg", width: props.size || 24, height: props.size || 24, viewBox: "0 0 24 24", fill: "none", stroke: "currentColor", strokeWidth: "2", strokeLinecap: "round", strokeLinejoin: "round"}, React.createElement('path', {d: "M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"}), React.createElement('polyline', {points: "7 10 12 15 17 10"}), React.createElement('line', {x1: "12", y1: "15", x2: "12", y2: "3"}));
         const FileUp = (props) => React.createElement('svg', {...props, xmlns: "http://www.w3.org/2000/svg", width: props.size || 24, height: props.size || 24, viewBox: "0 0 24 24", fill: "none", stroke: "currentColor", strokeWidth: "2", strokeLinecap: "round", strokeLinejoin: "round"}, React.createElement('path', {d: "M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"}), React.createElement('polyline', {points: "14 2 14 8 20 8"}), React.createElement('polyline', {points: "12 18 12 12 15 15"}), React.createElement('polyline', {points: "9 15 12 12"}));
+        const FileText = (props) => React.createElement('svg', {...props, xmlns: "http://www.w3.org/2000/svg", width: props.size || 24, height: props.size || 24, viewBox: "0 0 24 24", fill: "none", stroke: "currentColor", strokeWidth: "2", strokeLinecap: "round", strokeLinejoin: "round"}, React.createElement('path', {d: "M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"}), React.createElement('polyline', {points: "14 2 14 8 20 8"}), React.createElement('line', {x1: "16", y1: "13", x2: "8", y2: "13"}), React.createElement('line', {x1: "16", y1: "17", x2: "8", y2: "17"}), React.createElement('polyline', {points: "10 9 9 9 8 9"}));
         const ArrowRight = (props) => React.createElement('svg', {...props, xmlns: "http://www.w3.org/2000/svg", width: props.size || 24, height: props.size || 24, viewBox: "0 0 24 24", fill: "none", stroke: "currentColor", strokeWidth: "2", strokeLinecap: "round", strokeLinejoin: "round"}, React.createElement('line', {x1: "5", y1: "12", x2: "19", y2: "12"}), React.createElement('polyline', {points: "12 5 19 12 12 19"}));
         const Tag = (props) => React.createElement('svg', {...props, xmlns: "http://www.w3.org/2000/svg", width: props.size || 24, height: props.size || 24, viewBox: "0 0 24 24", fill: "none", stroke: "currentColor", strokeWidth: "2", strokeLinecap: "round", strokeLinejoin: "round"}, React.createElement('path', {d: "M20.59 13.41l-7.17 7.17a2 2 0 0 1-2.83 0L2 12V2h10l8.59 8.59a2 2 0 0 1 0 2.82z"}), React.createElement('line', {x1: "7", y1: "7", x2: "7.01", y2: "7"}));
         const Filter = (props) => React.createElement('svg', {...props, xmlns: "http://www.w3.org/2000/svg", width: props.size || 24, height: props.size || 24, viewBox: "0 0 24 24", fill: "none", stroke: "currentColor", strokeWidth: "2", strokeLinecap: "round", strokeLinejoin: "round"}, React.createElement('polygon', {points: "22 3 2 3 10 12.46 10 19 14 21 14 12.46 22 3"}));
@@ -194,9 +195,11 @@
         };
         
         console.log('═══════════════════════════════════════════════');
-        console.log('🚀 VERSION: V2.7.1-HYBRID-FIX-JAN13-0545 🚀');
-        console.log('📋 Hybrid ListItem: Sleek + Functional!');
-        console.log('🔧 Check icon added - No more crashes!');
+        console.log('🚀 VERSION: V2.7.3-COMPLETE-JAN13-1400 🚀');
+        console.log('📋 3 States: Not Started → In Progress → Done');
+        console.log('📝 Notes: Click FileText icon, add remarks');
+        console.log('🔒 Deletion: Lock mechanism prevents comeback');
+        console.log('🔇 Toast: Suppressed on delete during rapid entry');
         console.log('═══════════════════════════════════════════════');
         console.log('🖥️ Device detected:', getDeviceId());
         
@@ -2692,7 +2695,13 @@
                     }
                     return list;
                 }));
-                showToast('Item removed from list');
+                
+                // V2.7.3 FIX: Don't show toast during rapid entry (prevents focus loss)
+                if (!isCreatingTasksRef.current) {
+                    showToast('Item removed from list');
+                } else {
+                    console.log('🔇 Delete toast suppressed (rapid entry mode)');
+                }
                 
                 // V2.7.1: Save updated list to Supabase
                 if (user && !isLoadingFromSupabase && updatedList) {
@@ -2711,8 +2720,16 @@
                         tasks: list.tasks.map(task => {
                             if (task.id !== taskId) return task;
                             
-                            // V2.7.1 UX: Simple toggle for list items - just done/not-started
-                            const newStatus = task.status === 'done' ? 'not-started' : 'done';
+                            // V2.7.2: Three-state cycle: not-started → in-progress → done → not-started
+                            let newStatus;
+                            if (task.status === 'not-started' || !task.status) {
+                                newStatus = 'in-progress';
+                            } else if (task.status === 'in-progress') {
+                                newStatus = 'done';
+                            } else {
+                                newStatus = 'not-started';
+                            }
+                            
                             const now = new Date().toISOString();
                             
                             return {
@@ -2748,6 +2765,28 @@
                 }));
                 
                 // V2.7.1: Save updated list to Supabase
+                if (user && !isLoadingFromSupabase && updatedList) {
+                    await saveListToSupabase(updatedList);
+                }
+            };
+            
+            const handleUpdateListTaskNotes = async (taskId, listId, newNotes) => {
+                // V2.7.2: Update list item notes
+                let updatedList = null;
+                setCustomLists(prev => prev.map(list => {
+                    if (list.id === listId) {
+                        updatedList = {
+                            ...list, 
+                            tasks: list.tasks.map(t => 
+                                t.id === taskId ? {...t, notes: newNotes} : t
+                            )
+                        };
+                        return updatedList;
+                    }
+                    return list;
+                }));
+                
+                // V2.7.2: Save updated list to Supabase
                 if (user && !isLoadingFromSupabase && updatedList) {
                     await saveListToSupabase(updatedList);
                 }
@@ -4762,9 +4801,13 @@
             // ====== VIEW: INDIVIDUAL LIST VIEW ======
             
             // V2.7.1 HYBRID: Sleek list item with useful features maintained
+            // V2.7.2 FEATURE: Enhanced list item with 3 states, notes, and colorful icons
             const ListItemCard = ({ item, listId }) => {
                 const [isEditing, setIsEditing] = useState(false);
                 const [editText, setEditText] = useState(item.text);
+                const [showNotes, setShowNotes] = useState(false);
+                const [isEditingNotes, setIsEditingNotes] = useState(false);
+                const [editNotes, setEditNotes] = useState(item.notes || '');
                 
                 const handleToggle = () => {
                     handleToggleListTaskStatus(item.id, listId);
@@ -4781,53 +4824,62 @@
                     }
                 };
                 
-                const isDone = item.status === 'done';
-                
-                // Priority colors (subtle)
-                const priorityColors = {
-                    critical: 'bg-red-500',
-                    high: 'bg-orange-500',
-                    medium: 'bg-yellow-500',
-                    low: 'bg-green-500'
+                const handleSaveNotes = () => {
+                    handleUpdateListTaskNotes(item.id, listId, editNotes.trim());
+                    setIsEditingNotes(false);
                 };
                 
-                // Due date formatting
-                const formatDueDate = (date) => {
-                    if (!date) return null;
-                    const dueDate = new Date(date);
-                    const today = new Date();
-                    const diffDays = Math.ceil((dueDate - today) / (1000 * 60 * 60 * 24));
-                    
-                    if (diffDays < 0) return { text: `${Math.abs(diffDays)}d overdue`, color: 'bg-red-100 text-red-700' };
-                    if (diffDays === 0) return { text: 'Due today', color: 'bg-orange-100 text-orange-700' };
-                    if (diffDays === 1) return { text: 'Due tomorrow', color: 'bg-yellow-100 text-yellow-700' };
-                    if (diffDays <= 7) return { text: `${diffDays}d left`, color: 'bg-blue-100 text-blue-700' };
-                    return { text: `${diffDays}d`, color: 'bg-gray-100 text-gray-600' };
+                // V2.7.2: Three states - not-started, in-progress, done
+                const status = item.status || 'not-started';
+                const isDone = status === 'done';
+                const isInProgress = status === 'in-progress';
+                const hasNotes = item.notes && item.notes.trim().length > 0;
+                
+                // V2.7.2: Status icon and colors
+                const getStatusDisplay = () => {
+                    if (isDone) {
+                        return {
+                            icon: <Check size={16} className="text-white" />,
+                            bgColor: 'bg-green-500',
+                            borderColor: 'border-green-500',
+                            hoverColor: 'hover:bg-green-600',
+                            label: 'Done - Click to mark as not started'
+                        };
+                    } else if (isInProgress) {
+                        return {
+                            icon: <Clock size={16} className="text-white" />,
+                            bgColor: 'bg-amber-500',
+                            borderColor: 'border-amber-500',
+                            hoverColor: 'hover:bg-amber-600',
+                            label: 'In Progress - Click to mark as done'
+                        };
+                    } else {
+                        return {
+                            icon: null,
+                            bgColor: 'bg-white',
+                            borderColor: 'border-gray-300',
+                            hoverColor: 'hover:border-gray-400',
+                            label: 'Not Started - Click to mark as in progress'
+                        };
+                    }
                 };
                 
-                const dueInfo = formatDueDate(item.dueDate);
+                const statusDisplay = getStatusDisplay();
                 
                 return (
-                    <div className="group flex items-center gap-2 px-3 py-2 bg-white hover:bg-gray-50 rounded-md border border-gray-200 transition-all">
-                        {/* Priority dot (subtle) */}
-                        {item.priority && item.priority !== 'medium' && (
-                            <div className={`flex-shrink-0 w-2 h-2 rounded-full ${priorityColors[item.priority]}`} title={item.priority} />
-                        )}
-                        
-                        {/* Checkbox */}
-                        <button
-                            onClick={handleToggle}
-                            className={`flex-shrink-0 w-5 h-5 rounded border-2 flex items-center justify-center transition-all ${
-                                isDone 
-                                    ? 'bg-green-500 border-green-500' 
-                                    : 'border-gray-300 hover:border-green-400'
-                            }`}
-                        >
-                            {isDone && <Check size={14} className="text-white" />}
-                        </button>
-                        
-                        {/* Text */}
-                        <div className="flex-1 min-w-0">
+                    <div className="group bg-white hover:bg-gray-50 rounded-lg border border-gray-200 transition-all">
+                        {/* Main row */}
+                        <div className="flex items-center gap-3 px-3 py-2.5">
+                            {/* Status icon - cycles through 3 states */}
+                            <button
+                                onClick={handleToggle}
+                                className={`flex-shrink-0 w-6 h-6 rounded-full border-2 flex items-center justify-center transition-all ${statusDisplay.bgColor} ${statusDisplay.borderColor} ${statusDisplay.hoverColor}`}
+                                title={statusDisplay.label}
+                            >
+                                {statusDisplay.icon}
+                            </button>
+                            
+                            {/* Text */}
                             {isEditing ? (
                                 <input
                                     type="text"
@@ -4838,44 +4890,108 @@
                                         if (e.key === 'Escape') setIsEditing(false);
                                     }}
                                     onBlur={handleSaveEdit}
-                                    className="w-full px-2 py-1 text-sm border border-blue-300 rounded focus:outline-none focus:border-blue-500"
+                                    className="flex-1 px-2 py-1 text-sm border border-blue-300 rounded focus:outline-none focus:border-blue-500"
                                     autoFocus
                                 />
                             ) : (
-                                <div className="flex items-center gap-2 flex-wrap">
-                                    <span
-                                        onClick={() => setIsEditing(true)}
-                                        className={`text-sm cursor-pointer ${
-                                            isDone ? 'line-through text-gray-400' : 'text-gray-700'
-                                        }`}
-                                    >
-                                        {item.text}
-                                    </span>
-                                    
-                                    {/* Badges (due date, points) */}
-                                    <div className="flex items-center gap-1">
-                                        {dueInfo && !isDone && (
-                                            <span className={`text-[10px] px-1.5 py-0.5 rounded ${dueInfo.color} font-medium`}>
-                                                {dueInfo.text}
-                                            </span>
-                                        )}
-                                        {item.points > 0 && (
-                                            <span className="text-[10px] px-1.5 py-0.5 rounded bg-purple-100 text-purple-700 font-medium">
-                                                {item.points}pt
-                                            </span>
-                                        )}
-                                    </div>
-                                </div>
+                                <span
+                                    onClick={() => setIsEditing(true)}
+                                    className={`flex-1 text-sm cursor-pointer transition-all ${
+                                        isDone ? 'line-through text-gray-400' : 
+                                        isInProgress ? 'text-amber-700 font-medium' : 
+                                        'text-gray-700'
+                                    }`}
+                                    title="Click to edit"
+                                >
+                                    {item.text}
+                                </span>
                             )}
+                            
+                            {/* Action icons */}
+                            <div className="flex items-center gap-1">
+                                {/* Notes indicator/button */}
+                                <button
+                                    onClick={() => setShowNotes(!showNotes)}
+                                    className={`flex-shrink-0 p-1.5 rounded transition-all ${
+                                        hasNotes 
+                                            ? 'bg-blue-100 text-blue-600 hover:bg-blue-200' 
+                                            : 'opacity-0 group-hover:opacity-100 text-gray-400 hover:bg-gray-100 hover:text-gray-600'
+                                    }`}
+                                    title={hasNotes ? "View notes" : "Add notes"}
+                                >
+                                    <FileText size={15} />
+                                </button>
+                                
+                                {/* Delete button */}
+                                <button
+                                    onClick={handleDelete}
+                                    className="flex-shrink-0 opacity-0 group-hover:opacity-100 p-1.5 hover:bg-red-50 rounded transition-all"
+                                    title="Delete item"
+                                >
+                                    <Trash2 size={15} className="text-red-500" />
+                                </button>
+                            </div>
                         </div>
                         
-                        {/* Delete button (shows on hover) */}
-                        <button
-                            onClick={handleDelete}
-                            className="flex-shrink-0 opacity-0 group-hover:opacity-100 p-1 hover:bg-red-50 rounded transition-all"
-                        >
-                            <Trash2 size={14} className="text-red-500" />
-                        </button>
+                        {/* Notes section (expandable) */}
+                        {showNotes && (
+                            <div className="px-3 pb-3 pt-1 border-t border-gray-100">
+                                {isEditingNotes ? (
+                                    <div className="space-y-2">
+                                        <textarea
+                                            value={editNotes}
+                                            onChange={(e) => setEditNotes(e.target.value)}
+                                            onKeyDown={(e) => {
+                                                if (e.key === 'Escape') {
+                                                    setIsEditingNotes(false);
+                                                    setEditNotes(item.notes || '');
+                                                }
+                                                // Ctrl/Cmd + Enter to save
+                                                if ((e.ctrlKey || e.metaKey) && e.key === 'Enter') {
+                                                    handleSaveNotes();
+                                                }
+                                            }}
+                                            placeholder="Add notes (place of purchase, remarks, etc.)..."
+                                            className="w-full px-2 py-1.5 text-xs border border-blue-300 rounded focus:outline-none focus:border-blue-500 resize-none"
+                                            rows="2"
+                                            autoFocus
+                                        />
+                                        <div className="flex gap-2">
+                                            <button
+                                                onClick={handleSaveNotes}
+                                                className="px-2 py-1 text-xs bg-blue-500 text-white rounded hover:bg-blue-600"
+                                            >
+                                                Save
+                                            </button>
+                                            <button
+                                                onClick={() => {
+                                                    setIsEditingNotes(false);
+                                                    setEditNotes(item.notes || '');
+                                                }}
+                                                className="px-2 py-1 text-xs bg-gray-200 text-gray-700 rounded hover:bg-gray-300"
+                                            >
+                                                Cancel
+                                            </button>
+                                        </div>
+                                    </div>
+                                ) : (
+                                    <div 
+                                        onClick={() => setIsEditingNotes(true)}
+                                        className="cursor-pointer"
+                                    >
+                                        {hasNotes ? (
+                                            <p className="text-xs text-gray-600 italic bg-blue-50 px-2 py-1.5 rounded hover:bg-blue-100 transition-colors">
+                                                📝 {item.notes}
+                                            </p>
+                                        ) : (
+                                            <p className="text-xs text-gray-400 italic hover:text-gray-600 transition-colors">
+                                                Click to add notes...
+                                            </p>
+                                        )}
+                                    </div>
+                                )}
+                            </div>
+                        )}
                     </div>
                 );
             };
