@@ -157,6 +157,7 @@
         const FileUp = (props) => React.createElement('svg', {...props, xmlns: "http://www.w3.org/2000/svg", width: props.size || 24, height: props.size || 24, viewBox: "0 0 24 24", fill: "none", stroke: "currentColor", strokeWidth: "2", strokeLinecap: "round", strokeLinejoin: "round"}, React.createElement('path', {d: "M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"}), React.createElement('polyline', {points: "14 2 14 8 20 8"}), React.createElement('polyline', {points: "12 18 12 12 15 15"}), React.createElement('polyline', {points: "9 15 12 12"}));
         const FileText = (props) => React.createElement('svg', {...props, xmlns: "http://www.w3.org/2000/svg", width: props.size || 24, height: props.size || 24, viewBox: "0 0 24 24", fill: "none", stroke: "currentColor", strokeWidth: "2", strokeLinecap: "round", strokeLinejoin: "round"}, React.createElement('path', {d: "M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"}), React.createElement('polyline', {points: "14 2 14 8 20 8"}), React.createElement('line', {x1: "16", y1: "13", x2: "8", y2: "13"}), React.createElement('line', {x1: "16", y1: "17", x2: "8", y2: "17"}), React.createElement('polyline', {points: "10 9 9 9 8 9"}));
         const ArrowRight = (props) => React.createElement('svg', {...props, xmlns: "http://www.w3.org/2000/svg", width: props.size || 24, height: props.size || 24, viewBox: "0 0 24 24", fill: "none", stroke: "currentColor", strokeWidth: "2", strokeLinecap: "round", strokeLinejoin: "round"}, React.createElement('line', {x1: "5", y1: "12", x2: "19", y2: "12"}), React.createElement('polyline', {points: "12 5 19 12 12 19"}));
+        const MoveHorizontal = (props) => React.createElement('svg', {...props, xmlns: "http://www.w3.org/2000/svg", width: props.size || 24, height: props.size || 24, viewBox: "0 0 24 24", fill: "none", stroke: "currentColor", strokeWidth: "2", strokeLinecap: "round", strokeLinejoin: "round"}, React.createElement('polyline', {points: "18 8 22 12 18 16"}), React.createElement('polyline', {points: "6 8 2 12 6 16"}), React.createElement('line', {x1: "2", y1: "12", x2: "22", y2: "12"}));
         const Tag = (props) => React.createElement('svg', {...props, xmlns: "http://www.w3.org/2000/svg", width: props.size || 24, height: props.size || 24, viewBox: "0 0 24 24", fill: "none", stroke: "currentColor", strokeWidth: "2", strokeLinecap: "round", strokeLinejoin: "round"}, React.createElement('path', {d: "M20.59 13.41l-7.17 7.17a2 2 0 0 1-2.83 0L2 12V2h10l8.59 8.59a2 2 0 0 1 0 2.82z"}), React.createElement('line', {x1: "7", y1: "7", x2: "7.01", y2: "7"}));
         const Filter = (props) => React.createElement('svg', {...props, xmlns: "http://www.w3.org/2000/svg", width: props.size || 24, height: props.size || 24, viewBox: "0 0 24 24", fill: "none", stroke: "currentColor", strokeWidth: "2", strokeLinecap: "round", strokeLinejoin: "round"}, React.createElement('polygon', {points: "22 3 2 3 10 12.46 10 19 14 21 14 12.46 22 3"}));
         const Search = (props) => React.createElement('svg', {...props, xmlns: "http://www.w3.org/2000/svg", width: props.size || 24, height: props.size || 24, viewBox: "0 0 24 24", fill: "none", stroke: "currentColor", strokeWidth: "2", strokeLinecap: "round", strokeLinejoin: "round"}, React.createElement('circle', {cx: "11", cy: "11", r: "8"}), React.createElement('path', {d: "m21 21-4.35-4.35"}));
@@ -195,11 +196,11 @@
         };
         
         console.log('═══════════════════════════════════════════════');
-        console.log('🚀 VERSION: V2.7.4-DELETE-FIX-JAN13-2050 🚀');
-        console.log('📋 3 States working, Inline notes visible');
-        console.log('🗑️ CRITICAL FIX: Deletions now save immediately!');
-        console.log('📝 NEW: Notes show inline (italic, gray)');
-        console.log('🔍 DEBUG: Deletion logging added');
+        console.log('🚀 VERSION: V2.7.6-MOVE-FEATURE-JAN14-2350 🚀');
+        console.log('📦 NEW: Move items between lists!');
+        console.log('🗑️ DELETION: Proper setState timing fix');
+        console.log('💾 DRAFT: Auto-save partial typing');
+        console.log('📝 INLINE: Notes display working');
         console.log('═══════════════════════════════════════════════');
         console.log('🖥️ Device detected:', getDeviceId());
         
@@ -2694,35 +2695,58 @@
             const handleDeleteFromList = async (taskId, listId) => {
                 console.log('🗑️ DELETE: Starting deletion', { taskId, listId });
                 
-                // V2.7.1: Update local state and capture updated list
-                let updatedList = null;
-                setCustomLists(prev => prev.map(list => {
-                    if (list.id === listId) {
-                        updatedList = {...list, tasks: list.tasks.filter(t => t.id !== taskId)};
-                        console.log('🗑️ DELETE: Updated list has', updatedList.tasks.length, 'items');
-                        return updatedList;
-                    }
-                    return list;
-                }));
+                // V2.7.5 PROPER FIX: Capture updatedList from setState callback
+                let updatedListRef = null;
                 
-                // V2.7.4 FIX: Toast always shown for now (will fix focus loss differently)
+                setCustomLists(prev => {
+                    const currentList = prev.find(l => l.id === listId);
+                    if (!currentList) {
+                        console.error('❌ DELETE: List not found!', listId);
+                        return prev; // No change
+                    }
+                    
+                    // Create updated list and store in ref
+                    updatedListRef = {
+                        ...currentList,
+                        tasks: currentList.tasks.filter(t => t.id !== taskId)
+                    };
+                    
+                    console.log('🗑️ DELETE: Updated list has', updatedListRef.tasks.length, 'items');
+                    
+                    // Return new state
+                    return prev.map(list => 
+                        list.id === listId ? updatedListRef : list
+                    );
+                });
+                
                 showToast('Item removed from list');
                 
-                // V2.7.4 FIX: Always save deletions immediately!
+                // V2.7.5: updatedListRef was captured from setState callback
                 console.log('🗑️ DELETE: Checking save conditions...', {
                     hasUser: !!user,
                     notLoading: !isLoadingFromSupabase,
-                    hasUpdatedList: !!updatedList
+                    hasUpdatedListRef: !!updatedListRef
                 });
                 
-                if (user && !isLoadingFromSupabase && updatedList) {
+                if (user && !isLoadingFromSupabase && updatedListRef) {
                     console.log('🗑️ DELETE: Conditions met, saving to Supabase...');
-                    await saveListToSupabase(updatedList);
+                    await saveListToSupabase(updatedListRef);
                     console.log('✅ DELETE: Save completed!');
                 } else {
                     console.error('❌ DELETE: Save SKIPPED due to conditions!', {
                         user: !!user,
                         isLoadingFromSupabase,
+                        updatedListRef: !!updatedListRef
+                    });
+                }
+            };
+                    console.error('❌ DELETE: Save SKIPPED due to conditions!', {
+                        user: !!user,
+                        isLoadingFromSupabase,
+                        updatedList: !!updatedList
+                    });
+                }
+            };
                         updatedList: !!updatedList
                     });
                 }
@@ -2808,6 +2832,88 @@
                 // V2.7.2: Save updated list to Supabase
                 if (user && !isLoadingFromSupabase && updatedList) {
                     await saveListToSupabase(updatedList);
+                }
+            };
+
+            // V2.7.5 NEW: Move item from one list to another
+            const handleMoveItemToList = async (taskId, sourceListId, targetListId) => {
+                console.log('📦 MOVE: Starting move', { taskId, sourceListId, targetListId });
+                
+                if (sourceListId === targetListId) {
+                    showToast('Item is already in this list');
+                    return;
+                }
+                
+                let sourceList = null;
+                let targetList = null;
+                let itemToMove = null;
+                
+                // Find the item to move
+                setCustomLists(prev => {
+                    sourceList = prev.find(l => l.id === sourceListId);
+                    targetList = prev.find(l => l.id === targetListId);
+                    
+                    if (!sourceList || !targetList) {
+                        console.error('❌ MOVE: Lists not found!');
+                        return prev;
+                    }
+                    
+                    itemToMove = sourceList.tasks.find(t => t.id === taskId);
+                    if (!itemToMove) {
+                        console.error('❌ MOVE: Item not found!');
+                        return prev;
+                    }
+                    
+                    console.log('📦 MOVE: Moving item:', itemToMove.text);
+                    
+                    // V2.7.5: Reset status to 'not-started' when moving (custom states might differ)
+                    const movedItem = {
+                        ...itemToMove,
+                        status: 'not-started'  // Reset to first state
+                    };
+                    
+                    // Remove from source, add to target
+                    const updatedSource = {
+                        ...sourceList,
+                        tasks: sourceList.tasks.filter(t => t.id !== taskId)
+                    };
+                    
+                    const updatedTarget = {
+                        ...targetList,
+                        tasks: [...targetList.tasks, movedItem]
+                    };
+                    
+                    console.log('📦 MOVE: Source now has', updatedSource.tasks.length, 'items');
+                    console.log('📦 MOVE: Target now has', updatedTarget.tasks.length, 'items');
+                    
+                    // Return updated state
+                    return prev.map(list => {
+                        if (list.id === sourceListId) return updatedSource;
+                        if (list.id === targetListId) return updatedTarget;
+                        return list;
+                    });
+                });
+                
+                // Save both lists
+                if (user && !isLoadingFromSupabase && sourceList && targetList) {
+                    console.log('📦 MOVE: Saving both lists to Supabase...');
+                    const updatedSource = {
+                        ...sourceList,
+                        tasks: sourceList.tasks.filter(t => t.id !== taskId)
+                    };
+                    const movedItem = { ...itemToMove, status: 'not-started' };
+                    const updatedTarget = {
+                        ...targetList,
+                        tasks: [...targetList.tasks, movedItem]
+                    };
+                    
+                    await Promise.all([
+                        saveListToSupabase(updatedSource),
+                        saveListToSupabase(updatedTarget)
+                    ]);
+                    
+                    showToast(`Moved to ${targetList.name}`);
+                    console.log('✅ MOVE: Save completed!');
                 }
             };
 
@@ -4827,6 +4933,8 @@
                 const [showNotes, setShowNotes] = useState(false);
                 const [isEditingNotes, setIsEditingNotes] = useState(false);
                 const [editNotes, setEditNotes] = useState(item.notes || '');
+                // V2.7.5 NEW: Move to dropdown
+                const [showMoveDropdown, setShowMoveDropdown] = useState(false);
                 
                 const handleToggle = () => {
                     handleToggleListTaskStatus(item.id, listId);
@@ -4847,6 +4955,15 @@
                     handleUpdateListTaskNotes(item.id, listId, editNotes.trim());
                     setIsEditingNotes(false);
                 };
+                
+                // V2.7.5 NEW: Handle move to another list
+                const handleMoveTo = (targetListId) => {
+                    handleMoveItemToList(item.id, listId, targetListId);
+                    setShowMoveDropdown(false);
+                };
+                
+                // V2.7.5 NEW: Get other lists (excluding current)
+                const otherLists = customLists.filter(l => l.id !== listId);
                 
                 // V2.7.2: Three states - not-started, in-progress, done
                 const status = item.status || 'not-started';
@@ -4941,7 +5058,7 @@
                             </div>
                             
                             {/* Action icons */}
-                            <div className="flex items-center gap-1">
+                            <div className="flex items-center gap-1 relative">
                                 {/* Notes indicator/button */}
                                 <button
                                     onClick={() => setShowNotes(!showNotes)}
@@ -4954,6 +5071,40 @@
                                 >
                                     <FileText size={15} />
                                 </button>
+                                
+                                {/* V2.7.5 NEW: Move to button */}
+                                {otherLists.length > 0 && (
+                                    <div className="relative">
+                                        <button
+                                            onClick={() => setShowMoveDropdown(!showMoveDropdown)}
+                                            className="flex-shrink-0 opacity-0 group-hover:opacity-100 p-1.5 hover:bg-purple-50 rounded transition-all"
+                                            title="Move to another list"
+                                        >
+                                            <MoveHorizontal size={15} className="text-purple-500" />
+                                        </button>
+                                        
+                                        {/* Move dropdown */}
+                                        {showMoveDropdown && (
+                                            <div className="absolute right-0 top-full mt-1 bg-white border border-gray-300 rounded-lg shadow-lg z-50 min-w-[200px]">
+                                                <div className="py-1">
+                                                    <div className="px-3 py-2 text-xs font-semibold text-gray-500 border-b">
+                                                        Move to...
+                                                    </div>
+                                                    {otherLists.map(list => (
+                                                        <button
+                                                            key={list.id}
+                                                            onClick={() => handleMoveTo(list.id)}
+                                                            className="w-full text-left px-3 py-2 hover:bg-gray-100 transition-colors flex items-center gap-2"
+                                                        >
+                                                            <span>{list.icon}</span>
+                                                            <span className="text-sm">{list.name}</span>
+                                                        </button>
+                                                    ))}
+                                                </div>
+                                            </div>
+                                        )}
+                                    </div>
+                                )}
                                 
                                 {/* Delete button */}
                                 <button
@@ -5034,7 +5185,22 @@
                 const newTaskInputRef = useRef(null);
                 const isCreatingTasksRef = useRef(false);
                 const lastTaskCreationTimeRef = useRef(0);
-                const [newTaskText, setNewTaskText] = useState('');
+                
+                // V2.7.5 NEW: Draft saving - restore draft on mount
+                const draftKey = `list-draft-${listId}`;
+                const [newTaskText, setNewTaskText] = useState(() => {
+                    const savedDraft = localStorage.getItem(draftKey);
+                    return savedDraft || '';
+                });
+                
+                // V2.7.5 NEW: Save draft to localStorage when text changes
+                useEffect(() => {
+                    if (newTaskText.trim()) {
+                        localStorage.setItem(draftKey, newTaskText);
+                    } else {
+                        localStorage.removeItem(draftKey);
+                    }
+                }, [newTaskText, draftKey]);
                 
                 const list = customLists.find(l => l.id === listId);
                 
@@ -5117,6 +5283,10 @@
                                             setNewTaskText('');
                                         });
                                         console.log('🧹 Input cleared');
+                                        
+                                        // V2.7.5 NEW: Clear draft from localStorage
+                                        localStorage.removeItem(draftKey);
+                                        console.log('💾 Draft cleared from storage');
                                         
                                         // Keep focus with aggressive attempts
                                         if (inputElement) {
