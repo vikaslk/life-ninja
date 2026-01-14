@@ -196,11 +196,11 @@
         };
         
         console.log('═══════════════════════════════════════════════');
-        console.log('🚀 VERSION: V2.7.6-MOVE-FEATURE-JAN14-2350 🚀');
-        console.log('📦 NEW: Move items between lists!');
-        console.log('🗑️ DELETION: Proper setState timing fix');
-        console.log('💾 DRAFT: Auto-save partial typing');
-        console.log('📝 INLINE: Notes display working');
+        console.log('🚀 VERSION: V2.7.7-FINAL-FIX-JAN14-2359 🚀');
+        console.log('🗑️ DELETION: Calculate BEFORE setState (no callback!)');
+        console.log('📦 MOVE: Working perfectly');
+        console.log('💾 DRAFT: Persistent');
+        console.log('📝 INLINE: Notes working');
         console.log('═══════════════════════════════════════════════');
         console.log('🖥️ Device detected:', getDeviceId());
         
@@ -2695,48 +2695,45 @@
             const handleDeleteFromList = async (taskId, listId) => {
                 console.log('🗑️ DELETE: Starting deletion', { taskId, listId });
                 
-                // V2.7.5 PROPER FIX: Capture updatedList from setState callback
-                let updatedListRef = null;
+                // V2.7.7 FINAL FIX: Calculate updated list BEFORE setState
+                // Don't rely on setState callback - it's async!
+                const currentList = customLists.find(l => l.id === listId);
+                if (!currentList) {
+                    console.error('❌ DELETE: List not found!', listId);
+                    return;
+                }
                 
-                setCustomLists(prev => {
-                    const currentList = prev.find(l => l.id === listId);
-                    if (!currentList) {
-                        console.error('❌ DELETE: List not found!', listId);
-                        return prev; // No change
-                    }
-                    
-                    // Create updated list and store in ref
-                    updatedListRef = {
-                        ...currentList,
-                        tasks: currentList.tasks.filter(t => t.id !== taskId)
-                    };
-                    
-                    console.log('🗑️ DELETE: Updated list has', updatedListRef.tasks.length, 'items');
-                    
-                    // Return new state
-                    return prev.map(list => 
-                        list.id === listId ? updatedListRef : list
-                    );
-                });
+                // Calculate updated list BEFORE any setState
+                const updatedList = {
+                    ...currentList,
+                    tasks: currentList.tasks.filter(t => t.id !== taskId)
+                };
+                
+                console.log('🗑️ DELETE: Updated list has', updatedList.tasks.length, 'items');
+                
+                // Now update state with the pre-calculated list
+                setCustomLists(prev => prev.map(list => 
+                    list.id === listId ? updatedList : list
+                ));
                 
                 showToast('Item removed from list');
                 
-                // V2.7.5: updatedListRef was captured from setState callback
+                // V2.7.7: updatedList was calculated BEFORE setState, guaranteed to exist
                 console.log('🗑️ DELETE: Checking save conditions...', {
                     hasUser: !!user,
                     notLoading: !isLoadingFromSupabase,
-                    hasUpdatedListRef: !!updatedListRef
+                    hasUpdatedList: !!updatedList
                 });
                 
-                if (user && !isLoadingFromSupabase && updatedListRef) {
+                if (user && !isLoadingFromSupabase && updatedList) {
                     console.log('🗑️ DELETE: Conditions met, saving to Supabase...');
-                    await saveListToSupabase(updatedListRef);
+                    await saveListToSupabase(updatedList);
                     console.log('✅ DELETE: Save completed!');
                 } else {
                     console.error('❌ DELETE: Save SKIPPED due to conditions!', {
                         user: !!user,
                         isLoadingFromSupabase,
-                        updatedListRef: !!updatedListRef
+                        updatedList: !!updatedList
                     });
                 }
             };
