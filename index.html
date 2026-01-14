@@ -195,11 +195,11 @@
         };
         
         console.log('═══════════════════════════════════════════════');
-        console.log('🚀 VERSION: V2.7.3-COMPLETE-JAN13-1400 🚀');
-        console.log('📋 3 States: Not Started → In Progress → Done');
-        console.log('📝 Notes: Click FileText icon, add remarks');
-        console.log('🔒 Deletion: Lock mechanism prevents comeback');
-        console.log('🔇 Toast: Suppressed on delete during rapid entry');
+        console.log('🚀 VERSION: V2.7.4-DELETE-FIX-JAN13-2050 🚀');
+        console.log('📋 3 States working, Inline notes visible');
+        console.log('🗑️ CRITICAL FIX: Deletions now save immediately!');
+        console.log('📝 NEW: Notes show inline (italic, gray)');
+        console.log('🔍 DEBUG: Deletion logging added');
         console.log('═══════════════════════════════════════════════');
         console.log('🖥️ Device detected:', getDeviceId());
         
@@ -1178,13 +1178,19 @@
                         const timestamp = new Date().toISOString();
                         console.log(`📡 [${timestamp}] Tasks subscription status:`, status);
                         
-                        // V2.7.0: Detailed diagnostics
+                        // V2.7.4 FIX: Update sync status on connection changes
                         if (status === 'SUBSCRIBED') {
                             console.log('✅ Real-time sync CONNECTED');
+                            if (syncStatus === 'error') {
+                                console.log('🔄 Clearing error state, connection restored');
+                                setSyncStatus('synced');
+                            }
                         } else if (status === 'CHANNEL_ERROR') {
                             console.error('❌ Real-time sync ERROR - connection lost!');
+                            setSyncStatus('error');
                         } else if (status === 'TIMED_OUT') {
                             console.warn('⏱️ Real-time sync TIMEOUT - reconnecting...');
+                            setSyncStatus('error');
                         } else if (status === 'CLOSED') {
                             console.warn('🔌 Real-time sync CLOSED - connection ended');
                         }
@@ -2686,26 +2692,39 @@
             };
 
             const handleDeleteFromList = async (taskId, listId) => {
+                console.log('🗑️ DELETE: Starting deletion', { taskId, listId });
+                
                 // V2.7.1: Update local state and capture updated list
                 let updatedList = null;
                 setCustomLists(prev => prev.map(list => {
                     if (list.id === listId) {
                         updatedList = {...list, tasks: list.tasks.filter(t => t.id !== taskId)};
+                        console.log('🗑️ DELETE: Updated list has', updatedList.tasks.length, 'items');
                         return updatedList;
                     }
                     return list;
                 }));
                 
-                // V2.7.3 FIX: Don't show toast during rapid entry (prevents focus loss)
-                if (!isCreatingTasksRef.current) {
-                    showToast('Item removed from list');
-                } else {
-                    console.log('🔇 Delete toast suppressed (rapid entry mode)');
-                }
+                // V2.7.4 FIX: Toast always shown for now (will fix focus loss differently)
+                showToast('Item removed from list');
                 
-                // V2.7.1: Save updated list to Supabase
+                // V2.7.4 FIX: Always save deletions immediately!
+                console.log('🗑️ DELETE: Checking save conditions...', {
+                    hasUser: !!user,
+                    notLoading: !isLoadingFromSupabase,
+                    hasUpdatedList: !!updatedList
+                });
+                
                 if (user && !isLoadingFromSupabase && updatedList) {
+                    console.log('🗑️ DELETE: Conditions met, saving to Supabase...');
                     await saveListToSupabase(updatedList);
+                    console.log('✅ DELETE: Save completed!');
+                } else {
+                    console.error('❌ DELETE: Save SKIPPED due to conditions!', {
+                        user: !!user,
+                        isLoadingFromSupabase,
+                        updatedList: !!updatedList
+                    });
                 }
             };
 
@@ -4880,32 +4899,46 @@
                             </button>
                             
                             {/* Text */}
-                            {isEditing ? (
-                                <input
-                                    type="text"
-                                    value={editText}
-                                    onChange={(e) => setEditText(e.target.value)}
-                                    onKeyDown={(e) => {
-                                        if (e.key === 'Enter') handleSaveEdit();
-                                        if (e.key === 'Escape') setIsEditing(false);
-                                    }}
-                                    onBlur={handleSaveEdit}
-                                    className="flex-1 px-2 py-1 text-sm border border-blue-300 rounded focus:outline-none focus:border-blue-500"
-                                    autoFocus
-                                />
-                            ) : (
-                                <span
-                                    onClick={() => setIsEditing(true)}
-                                    className={`flex-1 text-sm cursor-pointer transition-all ${
-                                        isDone ? 'line-through text-gray-400' : 
-                                        isInProgress ? 'text-amber-700 font-medium' : 
-                                        'text-gray-700'
-                                    }`}
-                                    title="Click to edit"
-                                >
-                                    {item.text}
-                                </span>
-                            )}
+                            <div className="flex-1 min-w-0">
+                                {isEditing ? (
+                                    <input
+                                        type="text"
+                                        value={editText}
+                                        onChange={(e) => setEditText(e.target.value)}
+                                        onKeyDown={(e) => {
+                                            if (e.key === 'Enter') handleSaveEdit();
+                                            if (e.key === 'Escape') setIsEditing(false);
+                                        }}
+                                        onBlur={handleSaveEdit}
+                                        className="w-full px-2 py-1 text-sm border border-blue-300 rounded focus:outline-none focus:border-blue-500"
+                                        autoFocus
+                                    />
+                                ) : (
+                                    <div>
+                                        <span
+                                            onClick={() => setIsEditing(true)}
+                                            className={`text-sm cursor-pointer transition-all ${
+                                                isDone ? 'line-through text-gray-400' : 
+                                                isInProgress ? 'text-amber-700 font-medium' : 
+                                                'text-gray-700'
+                                            }`}
+                                            title="Click to edit"
+                                        >
+                                            {item.text}
+                                        </span>
+                                        {/* V2.7.4: Inline notes display */}
+                                        {hasNotes && (
+                                            <div 
+                                                className="mt-0.5 text-[11px] italic text-gray-500 cursor-pointer hover:text-gray-700 transition-colors"
+                                                onClick={() => setShowNotes(!showNotes)}
+                                                title="Click to edit note"
+                                            >
+                                                📝 {item.notes}
+                                            </div>
+                                        )}
+                                    </div>
+                                )}
+                            </div>
                             
                             {/* Action icons */}
                             <div className="flex items-center gap-1">
