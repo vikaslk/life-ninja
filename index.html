@@ -196,11 +196,12 @@
         };
         
         console.log('═══════════════════════════════════════════════');
-        console.log('🚀 VERSION: V2.7.7-FINAL-FIX-JAN14-2359 🚀');
-        console.log('🗑️ DELETION: Calculate BEFORE setState (no callback!)');
+        console.log('🚀 VERSION: V2.8.0-ARCHIVE-JAN15-0100 🚀');
+        console.log('📦 ARCHIVE: Archive/unarchive list items');
+        console.log('🎯 TOAST: Focus preserved on toast close');
+        console.log('🗑️ DELETION: Working perfectly');
         console.log('📦 MOVE: Working perfectly');
         console.log('💾 DRAFT: Persistent');
-        console.log('📝 INLINE: Notes working');
         console.log('═══════════════════════════════════════════════');
         console.log('🖥️ Device detected:', getDeviceId());
         
@@ -521,10 +522,29 @@
         const Toast = ({ message, onClose, showUndo, onUndo }) => {
             useEffect(() => {
                 const timer = setTimeout(() => {
+                    // V2.8.0 FIX: Preserve focus when toast closes
+                    const activeElement = document.activeElement;
                     onClose();
+                    // Restore focus after toast removal
+                    setTimeout(() => {
+                        if (activeElement && activeElement !== document.body) {
+                            activeElement.focus();
+                        }
+                    }, 0);
                 }, 3000);
                 return () => clearTimeout(timer);
             }, [onClose]);
+
+            // V2.8.0 FIX: Also preserve focus on manual close
+            const handleManualClose = () => {
+                const activeElement = document.activeElement;
+                onClose();
+                setTimeout(() => {
+                    if (activeElement && activeElement !== document.body) {
+                        activeElement.focus();
+                    }
+                }, 0);
+            };
 
             return (
                 <div className="toast flex items-center gap-3">
@@ -538,7 +558,7 @@
                             Undo
                         </button>
                     )}
-                    <button onClick={onClose} className="ml-2 hover:opacity-70">
+                    <button onClick={handleManualClose} className="ml-2 hover:opacity-70">
                         <X size={16} />
                     </button>
                 </div>
@@ -2903,6 +2923,44 @@
                 }
             };
 
+            // V2.8.0 NEW: Archive/unarchive item in list
+            const handleArchiveListItem = async (taskId, listId) => {
+                console.log('📦 ARCHIVE: Toggling archive', { taskId, listId });
+                
+                const currentList = customLists.find(l => l.id === listId);
+                if (!currentList) {
+                    console.error('❌ ARCHIVE: List not found!', listId);
+                    return;
+                }
+                
+                const item = currentList.tasks.find(t => t.id === taskId);
+                if (!item) {
+                    console.error('❌ ARCHIVE: Item not found!', taskId);
+                    return;
+                }
+                
+                const newArchivedState = !item.archived;
+                
+                const updatedList = {
+                    ...currentList,
+                    tasks: currentList.tasks.map(t => 
+                        t.id === taskId ? {...t, archived: newArchivedState} : t
+                    )
+                };
+                
+                console.log('📦 ARCHIVE: Item now', newArchivedState ? 'archived' : 'unarchived');
+                
+                setCustomLists(prev => prev.map(list => 
+                    list.id === listId ? updatedList : list
+                ));
+                
+                showToast(newArchivedState ? 'Item archived' : 'Item unarchived');
+                
+                if (user && !isLoadingFromSupabase && updatedList) {
+                    await saveListToSupabase(updatedList);
+                }
+            };
+
             // V2.7.1: handleAddNewList removed - now handled inside ListsManagementModal component
 
             const handleDeleteList = async (listId) => {
@@ -4948,8 +5006,16 @@
                     setShowMoveDropdown(false);
                 };
                 
+                // V2.8.0 NEW: Handle archive/unarchive
+                const handleArchive = () => {
+                    handleArchiveListItem(item.id, listId);
+                };
+                
                 // V2.7.5 NEW: Get other lists (excluding current)
                 const otherLists = customLists.filter(l => l.id !== listId);
+                
+                // V2.8.0: Check if archived
+                const isArchived = item.archived || false;
                 
                 // V2.7.2: Three states - not-started, in-progress, done
                 const status = item.status || 'not-started';
@@ -4989,13 +5055,19 @@
                 const statusDisplay = getStatusDisplay();
                 
                 return (
-                    <div className="group bg-white hover:bg-gray-50 rounded-lg border border-gray-200 transition-all">
+                    <div className={`group rounded-lg border transition-all ${
+                        isArchived 
+                            ? 'bg-gray-50 border-gray-300 opacity-60 hover:opacity-100' 
+                            : 'bg-white hover:bg-gray-50 border-gray-200'
+                    }`}>
                         {/* Main row */}
                         <div className="flex items-center gap-3 px-3 py-2.5">
                             {/* Status icon - cycles through 3 states */}
                             <button
                                 onClick={handleToggle}
-                                className={`flex-shrink-0 w-6 h-6 rounded-full border-2 flex items-center justify-center transition-all ${statusDisplay.bgColor} ${statusDisplay.borderColor} ${statusDisplay.hoverColor}`}
+                                className={`flex-shrink-0 w-6 h-6 rounded-full border-2 flex items-center justify-center transition-all ${
+                                    isArchived ? 'opacity-50' : ''
+                                } ${statusDisplay.bgColor} ${statusDisplay.borderColor} ${statusDisplay.hoverColor}`}
                                 title={statusDisplay.label}
                             >
                                 {statusDisplay.icon}
@@ -5092,6 +5164,19 @@
                                     </div>
                                 )}
                                 
+                                {/* V2.8.0 NEW: Archive button */}
+                                <button
+                                    onClick={handleArchive}
+                                    className={`flex-shrink-0 opacity-0 group-hover:opacity-100 p-1.5 rounded transition-all ${
+                                        isArchived 
+                                            ? 'bg-gray-100 text-gray-700 hover:bg-gray-200' 
+                                            : 'hover:bg-amber-50 text-amber-600'
+                                    }`}
+                                    title={isArchived ? "Unarchive item" : "Archive item"}
+                                >
+                                    <Archive size={15} />
+                                </button>
+                                
                                 {/* Delete button */}
                                 <button
                                     onClick={handleDelete}
@@ -5172,6 +5257,9 @@
                 const isCreatingTasksRef = useRef(false);
                 const lastTaskCreationTimeRef = useRef(0);
                 
+                // V2.8.0 NEW: Show archived toggle
+                const [showArchived, setShowArchived] = useState(false);
+                
                 // V2.7.5 NEW: Draft saving - restore draft on mount
                 const draftKey = `list-draft-${listId}`;
                 const [newTaskText, setNewTaskText] = useState(() => {
@@ -5215,13 +5303,33 @@
                                 <Tag className="text-amber-600" />
                                 {list.name}
                             </h1>
-                            <button 
-                                onClick={() => setCurrentView('list')} 
-                                className="px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 flex items-center gap-2"
-                            >
-                                <ChevronLeft size={18} />
-                                Back
-                            </button>
+                            <div className="flex items-center gap-2">
+                                {/* V2.8.0 NEW: Show Archived toggle */}
+                                <button
+                                    onClick={() => setShowArchived(!showArchived)}
+                                    className={`px-3 py-2 rounded-lg text-sm font-medium transition-all flex items-center gap-1 ${
+                                        showArchived 
+                                            ? 'bg-amber-100 text-amber-700 hover:bg-amber-200' 
+                                            : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+                                    }`}
+                                    title={showArchived ? "Hide archived items" : "Show archived items"}
+                                >
+                                    <Archive size={16} />
+                                    {showArchived ? 'Hide Archived' : 'Show Archived'}
+                                    {list.tasks.filter(t => t.archived).length > 0 && (
+                                        <span className="ml-1 text-xs">
+                                            ({list.tasks.filter(t => t.archived).length})
+                                        </span>
+                                    )}
+                                </button>
+                                <button 
+                                    onClick={() => setCurrentView('list')} 
+                                    className="px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 flex items-center gap-2"
+                                >
+                                    <ChevronLeft size={18} />
+                                    Back
+                                </button>
+                            </div>
                         </div>
                         
                         <div className="flex gap-4 mb-6">
@@ -5341,13 +5449,16 @@
                             {list.tasks.length === 0 && (
                                 <p className="text-gray-400 text-center py-8">No items in this list yet. Add items above!</p>
                             )}
-                            {list.tasks.map(task => (
-                                <ListItemCard 
-                                    key={task.id}
-                                    item={task}
-                                    listId={listId}
-                                />
-                            ))}
+                            {/* V2.8.0: Filter archived items based on toggle */}
+                            {list.tasks
+                                .filter(task => showArchived || !task.archived)
+                                .map(task => (
+                                    <ListItemCard 
+                                        key={task.id}
+                                        item={task}
+                                        listId={listId}
+                                    />
+                                ))}
                         </div>
                     </div>
                 );
