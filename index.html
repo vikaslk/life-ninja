@@ -196,12 +196,11 @@
         };
         
         console.log('═══════════════════════════════════════════════');
-        console.log('🚀 VERSION: V2.8.0-ARCHIVE-JAN15-0100 🚀');
-        console.log('📦 ARCHIVE: Archive/unarchive list items');
-        console.log('🎯 TOAST: Focus preserved on toast close');
+        console.log('🚀 VERSION: V2.8.1-TOAST-EVERYWHERE-JAN15-0130 🚀');
+        console.log('📦 ARCHIVE: 3-way toggle (Active/All/Archived)');
+        console.log('🎯 TOAST: Everywhere, focus always preserved');
+        console.log('✅ RAPID TYPING: Zero character loss');
         console.log('🗑️ DELETION: Working perfectly');
-        console.log('📦 MOVE: Working perfectly');
-        console.log('💾 DRAFT: Persistent');
         console.log('═══════════════════════════════════════════════');
         console.log('🖥️ Device detected:', getDeviceId());
         
@@ -2152,12 +2151,8 @@
                 setTasks(prev => [...prev, newTask]);
                 
                 // V2.6.3-TOAST: Show toast for first task or after pause
-                // Only suppress for rapid subsequent tasks
-                if (!wasInRapidMode) {
-                    showToast('Task created successfully');
-                } else {
-                    console.log('🔇 Toast suppressed - rapid entry in progress');
-                }
+                // V2.8.1: Always show toast now that focus is fixed!
+                showToast('Task created successfully');
                 
                 // V2.5.0-SYNC: Save to Supabase and get real ID
                 if (user && !isLoadingFromSupabase) {
@@ -2697,14 +2692,9 @@
                     return list;
                 }));
                 
-                // V2.7.1 FIX: Suppress toast during rapid entry to prevent focus loss
-                if (!isRapidEntry) {
-                    const listName = customLists.find(l => l.id === listId)?.name;
-                    console.log('📢 Showing toast (not rapid entry)');
-                    showToast(`Item added to ${listName}`);
-                } else {
-                    console.log('🔇 Toast suppressed (rapid entry mode)');
-                }
+                // V2.8.1: Always show toast now that focus is fixed!
+                const listName = customLists.find(l => l.id === listId)?.name;
+                showToast(`Item added to ${listName}`);
                 
                 // V2.7.1: Save updated list to Supabase
                 if (user && !isLoadingFromSupabase && updatedList) {
@@ -5257,8 +5247,17 @@
                 const isCreatingTasksRef = useRef(false);
                 const lastTaskCreationTimeRef = useRef(0);
                 
-                // V2.8.0 NEW: Show archived toggle
-                const [showArchived, setShowArchived] = useState(false);
+                // V2.8.1 NEW: 3-way archive view toggle - 'active' | 'all' | 'archived'
+                const [archiveView, setArchiveView] = useState('active');
+                
+                // V2.8.1: Cycle through views
+                const cycleArchiveView = () => {
+                    setArchiveView(prev => {
+                        if (prev === 'active') return 'all';
+                        if (prev === 'all') return 'archived';
+                        return 'active';
+                    });
+                };
                 
                 // V2.7.5 NEW: Draft saving - restore draft on mount
                 const draftKey = `list-draft-${listId}`;
@@ -5304,21 +5303,26 @@
                                 {list.name}
                             </h1>
                             <div className="flex items-center gap-2">
-                                {/* V2.8.0 NEW: Show Archived toggle */}
+                                {/* V2.8.1 NEW: 3-way archive view toggle */}
                                 <button
-                                    onClick={() => setShowArchived(!showArchived)}
+                                    onClick={cycleArchiveView}
                                     className={`px-3 py-2 rounded-lg text-sm font-medium transition-all flex items-center gap-1 ${
-                                        showArchived 
-                                            ? 'bg-amber-100 text-amber-700 hover:bg-amber-200' 
-                                            : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+                                        archiveView === 'active' ? 'bg-blue-100 text-blue-700 hover:bg-blue-200' :
+                                        archiveView === 'all' ? 'bg-purple-100 text-purple-700 hover:bg-purple-200' :
+                                        'bg-amber-100 text-amber-700 hover:bg-amber-200'
                                     }`}
-                                    title={showArchived ? "Hide archived items" : "Show archived items"}
+                                    title="Click to cycle: Active → All → Archived Only"
                                 >
                                     <Archive size={16} />
-                                    {showArchived ? 'Hide Archived' : 'Show Archived'}
+                                    {archiveView === 'active' && 'Active Items'}
+                                    {archiveView === 'all' && 'All Items'}
+                                    {archiveView === 'archived' && 'Archived Only'}
                                     {list.tasks.filter(t => t.archived).length > 0 && (
                                         <span className="ml-1 text-xs">
-                                            ({list.tasks.filter(t => t.archived).length})
+                                            {archiveView === 'archived' 
+                                                ? `(${list.tasks.filter(t => t.archived).length})`
+                                                : `(${list.tasks.filter(t => t.archived).length} archived)`
+                                            }
                                         </span>
                                     )}
                                 </button>
@@ -5449,9 +5453,13 @@
                             {list.tasks.length === 0 && (
                                 <p className="text-gray-400 text-center py-8">No items in this list yet. Add items above!</p>
                             )}
-                            {/* V2.8.0: Filter archived items based on toggle */}
+                            {/* V2.8.1: Filter based on archive view mode */}
                             {list.tasks
-                                .filter(task => showArchived || !task.archived)
+                                .filter(task => {
+                                    if (archiveView === 'active') return !task.archived;
+                                    if (archiveView === 'archived') return task.archived;
+                                    return true; // 'all' shows everything
+                                })
                                 .map(task => (
                                     <ListItemCard 
                                         key={task.id}
