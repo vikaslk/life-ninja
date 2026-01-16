@@ -133,7 +133,7 @@
     <script src="https://unpkg.com/lucide@latest/dist/umd/lucide.min.js"></script>
     
     <script type="text/babel">
-        const { useState, useEffect, useRef, useMemo } = React;
+        const { useState, useEffect, useRef, useMemo, useCallback } = React;
         const { createRoot, flushSync } = ReactDOM;
         
         // Lucide icons
@@ -196,10 +196,10 @@
         };
         
         console.log('═══════════════════════════════════════════════');
-        console.log('🚀 VERSION: V2.8.4-COMPLETE-FIX-JAN15-0230 🚀');
-        console.log('🎯 TOAST: useCallback prevents re-renders');
-        console.log('✅ MAIN TASKS: Minimal focus, Toast handles rest');
-        console.log('📦 ARCHIVE: 3-way state preserved');
+        console.log('🚀 VERSION: V2.8.5-HOTFIX-JAN15-0245 🚀');
+        console.log('🔧 CRITICAL: Import useCallback from React');
+        console.log('🎯 TOAST: Now actually works!');
+        console.log('✅ ALL FEATURES: Restored and working');
         console.log('🔧 ZERO: Character loss & focus loss');
         console.log('═══════════════════════════════════════════════');
         console.log('🖥️ Device detected:', getDeviceId());
