@@ -196,10 +196,10 @@
         };
         
         console.log('═══════════════════════════════════════════════');
-        console.log('🚀 VERSION: V2.8.9-SYNTAX-FIX-JAN15-0415 🚀');
-        console.log('🏗️ KEY INSIGHT: Isolated component = No re-renders!');
-        console.log('✅ TASK INPUT: Now in QuickTaskInput (memoized)');
-        console.log('🎯 SAME AS LISTS: Does not re-render when tasks change');
+        console.log('🚀 VERSION: V2.9.0-CLOSURE-FIX-JAN15-0430 🚀');
+        console.log('🎯 KEY FIX: createTask via closure, NOT prop!');
+        console.log('✅ SAME AS LISTS: Stable props = No re-renders');
+        console.log('🏗️ ARCHITECTURE: Perfect match with lists');
         console.log('💾 SUPABASE: Saves working perfectly');
         console.log('═══════════════════════════════════════════════');
         console.log('🖥️ Device detected:', getDeviceId());
@@ -5682,8 +5682,9 @@
             };
 
             // ====== VIEW: LIST VIEW ======
-            // V2.8.8 FIX: Isolated task input component that doesn't re-render when tasks change
-            const QuickTaskInput = React.memo(({ onCreateTask, isCreatingTasksRef, lastTaskCreationTimeRef }) => {
+            // V2.9.0 FIX: Access createTask via closure (NOT as prop!)
+            // Same pattern as lists - no props means no re-renders!
+            const QuickTaskInput = React.memo(({ isCreatingTasksRef, lastTaskCreationTimeRef }) => {
                 const [newTaskText, setNewTaskText] = useState('');
                 const newTaskTextRef = useRef('');
                 const newTaskInputRef = useRef(null);
@@ -5727,8 +5728,8 @@
                         });
                     }
                     
-                    // Create task
-                    onCreateTask({ text: taskText, _wasInRapidMode: wasInRapidMode });
+                    // V2.9.0 FIX: Access createTask via closure (stable reference!)
+                    createTask({ text: taskText, _wasInRapidMode: wasInRapidMode });
                     
                     // Auto-clear flag after 4 seconds
                     setTimeout(() => {
@@ -5736,7 +5737,7 @@
                             isCreatingTasksRef.current = false;
                         }
                     }, 4000);
-                }, [onCreateTask, isCreatingTasksRef, lastTaskCreationTimeRef]);
+                }, [isCreatingTasksRef, lastTaskCreationTimeRef]); // No onCreateTask dependency!
                 
                 return (
                     <div className="bg-white rounded-lg shadow p-4">
@@ -6049,9 +6050,8 @@
                             </div>
                         </div>
 
-                        {/* V2.8.8: Isolated task input component - doesn't re-render when tasks change! */}
+                        {/* V2.9.0: Isolated component - accesses createTask via closure! */}
                         <QuickTaskInput 
-                            onCreateTask={createTask}
                             isCreatingTasksRef={isCreatingTasksRef}
                             lastTaskCreationTimeRef={lastTaskCreationTimeRef}
                         />
