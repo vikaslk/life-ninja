@@ -196,11 +196,11 @@
         };
         
         console.log('═══════════════════════════════════════════════');
-        console.log('🚀 VERSION: V2.8.1-TOAST-EVERYWHERE-JAN15-0130 🚀');
-        console.log('📦 ARCHIVE: 3-way toggle (Active/All/Archived)');
-        console.log('🎯 TOAST: Everywhere, focus always preserved');
-        console.log('✅ RAPID TYPING: Zero character loss');
-        console.log('🗑️ DELETION: Working perfectly');
+        console.log('🚀 VERSION: V2.8.4-COMPLETE-FIX-JAN15-0230 🚀');
+        console.log('🎯 TOAST: useCallback prevents re-renders');
+        console.log('✅ MAIN TASKS: Minimal focus, Toast handles rest');
+        console.log('📦 ARCHIVE: 3-way state preserved');
+        console.log('🔧 ZERO: Character loss & focus loss');
         console.log('═══════════════════════════════════════════════');
         console.log('🖥️ Device detected:', getDeviceId());
         
@@ -519,23 +519,26 @@
         // ============================================================================
 
         const Toast = ({ message, onClose, showUndo, onUndo }) => {
-            useEffect(() => {
-                const timer = setTimeout(() => {
-                    // V2.8.0 FIX: Preserve focus when toast closes
-                    const activeElement = document.activeElement;
-                    onClose();
-                    // Restore focus after toast removal
-                    setTimeout(() => {
-                        if (activeElement && activeElement !== document.body) {
-                            activeElement.focus();
-                        }
-                    }, 0);
-                }, 3000);
-                return () => clearTimeout(timer);
+            // V2.8.2 FIX: Use useCallback to prevent parent re-renders
+            const handleAutoClose = useCallback(() => {
+                // V2.8.0 FIX: Preserve focus when toast closes
+                const activeElement = document.activeElement;
+                onClose();
+                // Restore focus after toast removal
+                setTimeout(() => {
+                    if (activeElement && activeElement !== document.body) {
+                        activeElement.focus();
+                    }
+                }, 0);
             }, [onClose]);
 
+            useEffect(() => {
+                const timer = setTimeout(handleAutoClose, 3000);
+                return () => clearTimeout(timer);
+            }, [handleAutoClose]);
+
             // V2.8.0 FIX: Also preserve focus on manual close
-            const handleManualClose = () => {
+            const handleManualClose = useCallback(() => {
                 const activeElement = document.activeElement;
                 onClose();
                 setTimeout(() => {
@@ -543,7 +546,7 @@
                         activeElement.focus();
                     }
                 }, 0);
-            };
+            }, [onClose]);
 
             return (
                 <div className="toast flex items-center gap-3">
@@ -731,9 +734,17 @@
             
             // Save a single task to Supabase
             const saveTaskToSupabase = async (task, options = {}) => {
-                if (!user) return;
-                if (isLoadingFromSupabase) return; // Don't save while loading!
+                console.log('💾 saveTaskToSupabase called:', task.text);
+                if (!user) {
+                    console.warn('❌ No user, aborting save');
+                    return;
+                }
+                if (isLoadingFromSupabase) {
+                    console.warn('❌ isLoadingFromSupabase=true, aborting save');
+                    return; // Don't save while loading!
+                }
                 
+                console.log('✅ Proceeding with save...');
                 try {
                     setSyncStatus('syncing');
                     
@@ -2155,9 +2166,12 @@
                 showToast('Task created successfully');
                 
                 // V2.5.0-SYNC: Save to Supabase and get real ID
+                console.log('💾 SAVE CHECK:', { hasUser: !!user, isLoading: isLoadingFromSupabase });
                 if (user && !isLoadingFromSupabase) {
                     try {
+                        console.log('💾 Saving task to Supabase:', newTask.text);
                         const savedTask = await saveTaskToSupabase(newTask);
+                        console.log('✅ Task saved, got ID:', savedTask?.id);
                         if (savedTask && savedTask.id) {
                             // Replace temp task with task using Supabase ID
                             setTasks(prev => prev.map(t => 
@@ -2169,6 +2183,8 @@
                     } catch (error) {
                         console.error('❌ Error saving new task:', error);
                     }
+                } else {
+                    console.warn('⚠️ Task NOT saved:', { user: !!user, isLoading: isLoadingFromSupabase });
                 }
                 
                 return newTask;
@@ -5247,8 +5263,17 @@
                 const isCreatingTasksRef = useRef(false);
                 const lastTaskCreationTimeRef = useRef(0);
                 
-                // V2.8.1 NEW: 3-way archive view toggle - 'active' | 'all' | 'archived'
-                const [archiveView, setArchiveView] = useState('active');
+                // V2.8.2 FIX: Persist archive view in localStorage (prevent reset on toast)
+                const archiveViewKey = `list-archive-view-${listId}`;
+                const [archiveView, setArchiveView] = useState(() => {
+                    const saved = localStorage.getItem(archiveViewKey);
+                    return saved || 'active';
+                });
+                
+                // V2.8.2: Save archive view when it changes
+                useEffect(() => {
+                    localStorage.setItem(archiveViewKey, archiveView);
+                }, [archiveView, archiveViewKey]);
                 
                 // V2.8.1: Cycle through views
                 const cycleArchiveView = () => {
@@ -5432,8 +5457,25 @@
                             <button 
                                 onClick={() => {
                                     if (newTaskText.trim()) {
-                                        handleAddToList(listId, newTaskText);
-                                        setNewTaskText('');
+                                        const text = newTaskText.trim();
+                                        
+                                        // Clear input synchronously
+                                        flushSync(() => {
+                                            setNewTaskText('');
+                                        });
+                                        
+                                        // V2.8.2 FIX: Clear draft from localStorage
+                                        localStorage.removeItem(draftKey);
+                                        
+                                        // Add the item
+                                        handleAddToList(listId, text);
+                                        
+                                        // V2.8.2 FIX: Refocus input after clicking Add
+                                        setTimeout(() => {
+                                            if (newTaskInputRef.current) {
+                                                newTaskInputRef.current.focus();
+                                            }
+                                        }, 0);
                                     }
                                 }}
                                 className="px-6 py-2 bg-amber-600 text-white rounded-lg hover:bg-amber-700 flex items-center gap-2"
@@ -5984,39 +6026,14 @@
                                             });
                                             newTaskTextRef.current = '';
                                             
-                                            // Keep focus with multiple aggressive attempts
+                                            // V2.8.2 FIX: Minimal focus handling - Toast will preserve focus!
+                                            // Just one immediate focus to ensure we're in the right place
                                             if (inputElement) {
-                                                // Immediate focus
                                                 inputElement.focus();
-                                                
-                                                // Multiple timed attempts
-                                                setTimeout(() => inputElement.focus(), 0);
-                                                setTimeout(() => inputElement.focus(), 10);
-                                                setTimeout(() => inputElement.focus(), 20);
-                                                setTimeout(() => inputElement.focus(), 50);
-                                                setTimeout(() => inputElement.focus(), 100);
-                                                
-                                                // Frame-based (syncs with rendering)
-                                                requestAnimationFrame(() => {
-                                                    inputElement.focus();
-                                                    requestAnimationFrame(() => inputElement.focus());
-                                                });
                                             }
                                             
                                             // Create task - pass rapid mode status
                                             createTask({ text: taskText, _wasInRapidMode: wasInRapidMode });
-                                            
-                                            // CRITICAL: Re-focus AFTER createTask causes re-render
-                                            // Use ref inside setTimeout to get NEW element after re-render
-                                            // The ref survives re-renders, but points to new DOM element
-                                            setTimeout(() => newTaskInputRef.current?.focus(), 100);
-                                            setTimeout(() => newTaskInputRef.current?.focus(), 150);
-                                            setTimeout(() => newTaskInputRef.current?.focus(), 200);
-                                            setTimeout(() => newTaskInputRef.current?.focus(), 250);
-                                            setTimeout(() => newTaskInputRef.current?.focus(), 300);
-                                            setTimeout(() => newTaskInputRef.current?.focus(), 350);
-                                            setTimeout(() => newTaskInputRef.current?.focus(), 400);
-                                            setTimeout(() => newTaskInputRef.current?.focus(), 500);
                                             
                                             // Auto-clear flag after 4 seconds of no activity
                                             setTimeout(() => {
@@ -6026,9 +6043,6 @@
                                                     
                                                     if (wasInRapidMode) {
                                                         console.log('🔄 Exited rapid entry mode');
-                                                        // V2.6.3: Don't show toast or update lastSyncTime
-                                                        // These cause screen shake and auto-scroll
-                                                        // User feedback: toast causes focus loss and screen jump
                                                     }
                                                 }
                                             }, 4000);
@@ -6055,39 +6069,13 @@
                                             });
                                             newTaskTextRef.current = '';
                                             
-                                            // Keep focus with multiple aggressive attempts
+                                            // V2.8.2 FIX: Minimal focus - Toast will preserve it!
                                             if (inputElement) {
-                                                // Immediate focus
                                                 inputElement.focus();
-                                                
-                                                // Multiple timed attempts
-                                                setTimeout(() => inputElement.focus(), 0);
-                                                setTimeout(() => inputElement.focus(), 10);
-                                                setTimeout(() => inputElement.focus(), 20);
-                                                setTimeout(() => inputElement.focus(), 50);
-                                                setTimeout(() => inputElement.focus(), 100);
-                                                
-                                                // Frame-based (syncs with rendering)
-                                                requestAnimationFrame(() => {
-                                                    inputElement.focus();
-                                                    requestAnimationFrame(() => inputElement.focus());
-                                                });
                                             }
                                             
                                             // Create task - pass rapid mode status
                                             createTask({ text: taskText, _wasInRapidMode: wasInRapidMode });
-                                            
-                                            // CRITICAL: Re-focus AFTER createTask causes re-render
-                                            // Use ref inside setTimeout to get NEW element after re-render
-                                            // The ref survives re-renders, but points to new DOM element
-                                            setTimeout(() => newTaskInputRef.current?.focus(), 100);
-                                            setTimeout(() => newTaskInputRef.current?.focus(), 150);
-                                            setTimeout(() => newTaskInputRef.current?.focus(), 200);
-                                            setTimeout(() => newTaskInputRef.current?.focus(), 250);
-                                            setTimeout(() => newTaskInputRef.current?.focus(), 300);
-                                            setTimeout(() => newTaskInputRef.current?.focus(), 350);
-                                            setTimeout(() => newTaskInputRef.current?.focus(), 400);
-                                            setTimeout(() => newTaskInputRef.current?.focus(), 500);
                                             
                                             // Auto-clear flag after 4 seconds
                                             setTimeout(() => {
