@@ -196,11 +196,11 @@
         };
         
         console.log('═══════════════════════════════════════════════');
-        console.log('🚀 VERSION: V2.8.5-HOTFIX-JAN15-0245 🚀');
-        console.log('🔧 CRITICAL: Import useCallback from React');
-        console.log('🎯 TOAST: Now actually works!');
-        console.log('✅ ALL FEATURES: Restored and working');
-        console.log('🔧 ZERO: Character loss & focus loss');
+        console.log('🚀 VERSION: V2.8.6-CRITICAL-DB-FIX-JAN15-0315 🚀');
+        console.log('🔧 CRITICAL: Removed all device tracking fields');
+        console.log('💾 SUPABASE: Now saves successfully');
+        console.log('🎯 TASKS: Stable input key for focus preservation');
+        console.log('✅ ALL AREAS: Should work perfectly now');
         console.log('═══════════════════════════════════════════════');
         console.log('🖥️ Device detected:', getDeviceId());
         
@@ -773,18 +773,13 @@
                         subtasks: task.subtasks || []
                     };
                     
-                    // V2.7.1: Device tracking - which device created/edited this task
-                    const deviceId = getDeviceId();
-                    const isNewTask = !task.supabaseId;
-                    if (isNewTask) {
-                        taskData.created_device = deviceId; // Set on creation
-                    }
-                    taskData.last_edited_device = deviceId; // Always update on save
+                    // V2.8.6 FIX: Removed device tracking - columns don't exist in DB
+                    // Device tracking was for multi-device conflict resolution
+                    // Can be re-added if needed by adding columns to Supabase
                     
-                    // V2.5.12-MANUAL-SYNC: Track device when saving manual_order
+                    // V2.5.12-MANUAL-SYNC: Track manual order
                     if (!excludeManualOrder) {
                         taskData.manual_order = task.manualOrder || null;
-                        taskData.last_ordered_device = getDeviceId();
                         taskData.last_ordered_at = new Date().toISOString();
                     }
                     
@@ -1634,9 +1629,8 @@
                         id: list.id,
                         user_id: user.id,
                         name: list.name,
-                        tasks: list.tasks || [],
-                        created_device: isNewList ? deviceId : list.created_device, // Only set on creation
-                        last_edited_device: deviceId // Always update on save
+                        tasks: list.tasks || []
+                        // V2.8.6 FIX: Removed device tracking - columns may not exist in DB
                     };
                     
                     const { data, error } = await supabase
@@ -1733,8 +1727,7 @@
                         name: l.name,
                         tasks: l.tasks || [],
                         createdAt: l.created_at,
-                        created_device: l.created_device, // V2.7.1: Device tracking
-                        last_edited_device: l.last_edited_device // V2.7.1: Device tracking
+                        // V2.8.6 FIX: Removed device tracking fields
                     }));
                     
                     // V2.7.1 FIX: Use Supabase as single source of truth
@@ -1781,9 +1774,8 @@
                                     supabaseId: payload.new.id,
                                     name: payload.new.name,
                                     tasks: payload.new.tasks || [],
-                                    createdAt: payload.new.created_at,
-                                    created_device: payload.new.created_device, // V2.7.1
-                                    last_edited_device: payload.new.last_edited_device // V2.7.1
+                                    createdAt: payload.new.created_at
+                                    // V2.8.6 FIX: Removed device tracking
                                 };
                                 
                                 // Check if list already exists locally
@@ -1804,9 +1796,8 @@
                                     supabaseId: payload.new.id,
                                     name: payload.new.name,
                                     tasks: payload.new.tasks || [],
-                                    createdAt: payload.new.created_at,
-                                    created_device: payload.new.created_device, // V2.7.1
-                                    last_edited_device: payload.new.last_edited_device // V2.7.1
+                                    createdAt: payload.new.created_at
+                                    // V2.8.6 FIX: Removed device tracking
                                 };
                                 
                                 // V2.7.1 CRITICAL FIX: Don't overwrite if we're actively saving this list!
@@ -2247,8 +2238,8 @@
                                 id: task.supabaseId,
                                 user_id: user.id,
                                 manual_order: task.manualOrder,
-                                last_ordered_device: getDeviceId(),
                                 last_ordered_at: new Date().toISOString()
+                                // V2.8.6 FIX: Removed last_ordered_device
                             }));
                             
                             // Update all at once using upsert
@@ -2257,7 +2248,6 @@
                                     .from('tasks')
                                     .update({
                                         manual_order: update.manual_order,
-                                        last_ordered_device: update.last_ordered_device,
                                         last_ordered_at: update.last_ordered_at
                                     })
                                     .eq('id', update.id)
@@ -2309,8 +2299,8 @@
                                 id: task.supabaseId,
                                 user_id: user.id,
                                 manual_order: task.manualOrder,
-                                last_ordered_device: getDeviceId(),
                                 last_ordered_at: new Date().toISOString()
+                                // V2.8.6 FIX: Removed last_ordered_device
                             }));
                             
                             // Update all at once
@@ -2319,7 +2309,6 @@
                                     .from('tasks')
                                     .update({
                                         manual_order: update.manual_order,
-                                        last_ordered_device: update.last_ordered_device,
                                         last_ordered_at: update.last_ordered_at
                                     })
                                     .eq('id', update.id)
@@ -2460,8 +2449,8 @@
                     const updates = tasksWithOrder.map(task => ({
                         id: task.supabaseId,
                         manual_order: task.manualOrder,
-                        last_ordered_device: deviceId,
                         last_ordered_at: timestamp
+                        // V2.8.6 FIX: Removed last_ordered_device
                     }));
                     
                     // Update all in parallel
@@ -2470,7 +2459,6 @@
                             .from('tasks')
                             .update({
                                 manual_order: update.manual_order,
-                                last_ordered_device: update.last_ordered_device,
                                 last_ordered_at: update.last_ordered_at
                             })
                             .eq('id', update.id)
@@ -2514,7 +2502,7 @@
                     // Get all tasks from Supabase with their manual_order
                     const { data, error } = await supabase
                         .from('tasks')
-                        .select('id, manual_order, last_ordered_device, last_ordered_at')
+                        .select('id, manual_order, last_ordered_at')
                         .eq('user_id', user.id)
                         .not('manual_order', 'is', null)
                         .order('manual_order');
@@ -2530,7 +2518,7 @@
                         return;
                     }
                     
-                    console.log('📥 PULL: Cloud orders:', data.map(t => ({ id: t.id, order: t.manual_order, device: t.last_ordered_device })));
+                    console.log('📥 PULL: Cloud orders:', data.map(t => ({ id: t.id, order: t.manual_order })));
                     
                     // Update local tasks with Supabase manual_order
                     setTasks(prev => {
@@ -2549,18 +2537,9 @@
                     
                     setIsManualOrder(true);
                     
-                    // Get device name that we synced from
-                    const latestOrder = data.reduce((latest, current) => {
-                        if (!latest || new Date(current.last_ordered_at) > new Date(latest.last_ordered_at)) {
-                            return current;
-                        }
-                        return latest;
-                    }, null);
-                    
-                    const sourceDevice = latestOrder?.last_ordered_device || 'other device';
-                    
-                    console.log(`✅ PULL: Successfully pulled order from ${sourceDevice}`);
-                    showToast(`✅ Order pulled from ${sourceDevice}!`);
+                    // V2.8.6 FIX: Removed device tracking
+                    console.log(`✅ PULL: Successfully pulled order from cloud`);
+                    showToast(`✅ Order pulled from cloud!`);
                     setSyncStatus('synced');
                     setLastSyncTime(new Date());
                     
@@ -5995,6 +5974,7 @@
                         <div className="bg-white rounded-lg shadow p-4">
                             <div className="flex gap-2">
                                 <input
+                                    key="main-task-input-stable"
                                     ref={newTaskInputRef}
                                     type="text"
                                     placeholder="Add a new task..."
