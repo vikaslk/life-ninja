@@ -196,12 +196,11 @@
         };
         
         console.log('═══════════════════════════════════════════════');
-        console.log('🚀 VERSION: V2.10.0-TASKS-MATCH-LISTS-JAN17-0615 🚀');
-        console.log('🎯 SURGICAL FIX: Tasks now use EXACT Lists pattern');
-        console.log('✅ 14 focus attempts (0-500ms coverage)');
-        console.log('✅ Removed redundant focus code');
-        console.log('✅ Added autoFocus attribute');
-        console.log('✅ Clean, proven pattern from Lists');
+        console.log('🚀 VERSION: V2.10.1-DATABASE-FIX-JAN17-1035 🚀');
+        console.log('🔧 CRITICAL: Removed device tracking columns');
+        console.log('✅ Database saves working again');
+        console.log('✅ All V2.10.0 typing improvements preserved');
+        console.log('📋 See migration SQL for device tracking feature');
         console.log('═══════════════════════════════════════════════');
         console.log('🖥️ Device detected:', getDeviceId());
         
@@ -763,18 +762,19 @@
                         subtasks: task.subtasks || []
                     };
                     
-                    // V2.7.1: Device tracking - which device created/edited this task
-                    const deviceId = getDeviceId();
-                    const isNewTask = !task.supabaseId;
-                    if (isNewTask) {
-                        taskData.created_device = deviceId; // Set on creation
-                    }
-                    taskData.last_edited_device = deviceId; // Always update on save
+                    // V2.10.1 FIX: Device tracking columns removed (don't exist in DB yet)
+                    // TODO: Add back after running SQL migration (see V2.10.1_DEVICE_TRACKING_MIGRATION.sql)
+                    // const deviceId = getDeviceId();
+                    // const isNewTask = !task.supabaseId;
+                    // if (isNewTask) {
+                    //     taskData.created_device = deviceId;
+                    // }
+                    // taskData.last_edited_device = deviceId;
                     
-                    // V2.5.12-MANUAL-SYNC: Track device when saving manual_order
+                    // V2.5.12-MANUAL-SYNC: Manual order tracking
                     if (!excludeManualOrder) {
                         taskData.manual_order = task.manualOrder || null;
-                        taskData.last_ordered_device = getDeviceId();
+                        // V2.10.1: Removed last_ordered_device (column doesn't exist)
                         taskData.last_ordered_at = new Date().toISOString();
                     }
                     
@@ -2236,7 +2236,7 @@
                                 id: task.supabaseId,
                                 user_id: user.id,
                                 manual_order: task.manualOrder,
-                                last_ordered_device: getDeviceId(),
+                                // V2.10.1: Removed last_ordered_device (column doesn't exist)
                                 last_ordered_at: new Date().toISOString()
                             }));
                             
@@ -2246,7 +2246,7 @@
                                     .from('tasks')
                                     .update({
                                         manual_order: update.manual_order,
-                                        last_ordered_device: update.last_ordered_device,
+                                        // V2.10.1: Removed last_ordered_device
                                         last_ordered_at: update.last_ordered_at
                                     })
                                     .eq('id', update.id)
@@ -2298,7 +2298,7 @@
                                 id: task.supabaseId,
                                 user_id: user.id,
                                 manual_order: task.manualOrder,
-                                last_ordered_device: getDeviceId(),
+                                // V2.10.1: Removed last_ordered_device (column doesn't exist)
                                 last_ordered_at: new Date().toISOString()
                             }));
                             
@@ -2308,7 +2308,7 @@
                                     .from('tasks')
                                     .update({
                                         manual_order: update.manual_order,
-                                        last_ordered_device: update.last_ordered_device,
+                                        // V2.10.1: Removed last_ordered_device
                                         last_ordered_at: update.last_ordered_at
                                     })
                                     .eq('id', update.id)
@@ -2449,7 +2449,7 @@
                     const updates = tasksWithOrder.map(task => ({
                         id: task.supabaseId,
                         manual_order: task.manualOrder,
-                        last_ordered_device: deviceId,
+                        // V2.10.1: Removed last_ordered_device (column doesn't exist)
                         last_ordered_at: timestamp
                     }));
                     
@@ -2459,7 +2459,7 @@
                             .from('tasks')
                             .update({
                                 manual_order: update.manual_order,
-                                last_ordered_device: update.last_ordered_device,
+                                // V2.10.1: Removed last_ordered_device
                                 last_ordered_at: update.last_ordered_at
                             })
                             .eq('id', update.id)
@@ -2503,7 +2503,7 @@
                     // Get all tasks from Supabase with their manual_order
                     const { data, error } = await supabase
                         .from('tasks')
-                        .select('id, manual_order, last_ordered_device, last_ordered_at')
+                        .select('id, manual_order, last_ordered_at')  // V2.10.1: Removed last_ordered_device
                         .eq('user_id', user.id)
                         .not('manual_order', 'is', null)
                         .order('manual_order');
@@ -2519,7 +2519,7 @@
                         return;
                     }
                     
-                    console.log('📥 PULL: Cloud orders:', data.map(t => ({ id: t.id, order: t.manual_order, device: t.last_ordered_device })));
+                    console.log('📥 PULL: Cloud orders:', data.map(t => ({ id: t.id, order: t.manual_order })));
                     
                     // Update local tasks with Supabase manual_order
                     setTasks(prev => {
@@ -2538,18 +2538,9 @@
                     
                     setIsManualOrder(true);
                     
-                    // Get device name that we synced from
-                    const latestOrder = data.reduce((latest, current) => {
-                        if (!latest || new Date(current.last_ordered_at) > new Date(latest.last_ordered_at)) {
-                            return current;
-                        }
-                        return latest;
-                    }, null);
-                    
-                    const sourceDevice = latestOrder?.last_ordered_device || 'other device';
-                    
-                    console.log(`✅ PULL: Successfully pulled order from ${sourceDevice}`);
-                    showToast(`✅ Order pulled from ${sourceDevice}!`);
+                    // V2.10.1: Simplified message (no device name)
+                    console.log('✅ PULL: Successfully pulled order from cloud');
+                    showToast('✅ Order pulled from cloud!');
                     setSyncStatus('synced');
                     setLastSyncTime(new Date());
                     
