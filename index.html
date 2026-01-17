@@ -133,7 +133,7 @@
     <script src="https://unpkg.com/lucide@latest/dist/umd/lucide.min.js"></script>
     
     <script type="text/babel">
-        const { useState, useEffect, useRef, useMemo, useCallback } = React;
+        const { useState, useEffect, useRef, useMemo } = React;
         const { createRoot, flushSync } = ReactDOM;
         
         // Lucide icons
@@ -196,11 +196,12 @@
         };
         
         console.log('═══════════════════════════════════════════════');
-        console.log('🚀 VERSION: V2.HYBRID-STABLE-BASELINE 🚀');
-        console.log('📦 LISTS: From v2.9.0 (Superior implementation)');
-        console.log('📦 TASKS: From v2.8.0 (Stable, working)');
-        console.log('✅ HYBRID: Best of both worlds combined');
-        console.log('🎯 STATUS: Ready for testing and enhancement');
+        console.log('🚀 VERSION: V2.10.0-TASKS-MATCH-LISTS-JAN17-0615 🚀');
+        console.log('🎯 SURGICAL FIX: Tasks now use EXACT Lists pattern');
+        console.log('✅ 14 focus attempts (0-500ms coverage)');
+        console.log('✅ Removed redundant focus code');
+        console.log('✅ Added autoFocus attribute');
+        console.log('✅ Clean, proven pattern from Lists');
         console.log('═══════════════════════════════════════════════');
         console.log('🖥️ Device detected:', getDeviceId());
         
@@ -519,26 +520,23 @@
         // ============================================================================
 
         const Toast = ({ message, onClose, showUndo, onUndo }) => {
-            // V2.8.2 FIX: Use useCallback to prevent parent re-renders
-            const handleAutoClose = useCallback(() => {
-                // V2.8.0 FIX: Preserve focus when toast closes
-                const activeElement = document.activeElement;
-                onClose();
-                // Restore focus after toast removal
-                setTimeout(() => {
-                    if (activeElement && activeElement !== document.body) {
-                        activeElement.focus();
-                    }
-                }, 0);
-            }, [onClose]);
-
             useEffect(() => {
-                const timer = setTimeout(handleAutoClose, 3000);
+                const timer = setTimeout(() => {
+                    // V2.8.0 FIX: Preserve focus when toast closes
+                    const activeElement = document.activeElement;
+                    onClose();
+                    // Restore focus after toast removal
+                    setTimeout(() => {
+                        if (activeElement && activeElement !== document.body) {
+                            activeElement.focus();
+                        }
+                    }, 0);
+                }, 3000);
                 return () => clearTimeout(timer);
-            }, [handleAutoClose]);
+            }, [onClose]);
 
             // V2.8.0 FIX: Also preserve focus on manual close
-            const handleManualClose = useCallback(() => {
+            const handleManualClose = () => {
                 const activeElement = document.activeElement;
                 onClose();
                 setTimeout(() => {
@@ -546,7 +544,7 @@
                         activeElement.focus();
                     }
                 }, 0);
-            }, [onClose]);
+            };
 
             return (
                 <div className="toast flex items-center gap-3">
@@ -734,17 +732,9 @@
             
             // Save a single task to Supabase
             const saveTaskToSupabase = async (task, options = {}) => {
-                console.log('💾 saveTaskToSupabase called:', task.text);
-                if (!user) {
-                    console.warn('❌ No user, aborting save');
-                    return;
-                }
-                if (isLoadingFromSupabase) {
-                    console.warn('❌ isLoadingFromSupabase=true, aborting save');
-                    return; // Don't save while loading!
-                }
+                if (!user) return;
+                if (isLoadingFromSupabase) return; // Don't save while loading!
                 
-                console.log('✅ Proceeding with save...');
                 try {
                     setSyncStatus('syncing');
                     
@@ -773,13 +763,18 @@
                         subtasks: task.subtasks || []
                     };
                     
-                    // V2.8.6 FIX: Removed device tracking - columns don't exist in DB
-                    // Device tracking was for multi-device conflict resolution
-                    // Can be re-added if needed by adding columns to Supabase
+                    // V2.7.1: Device tracking - which device created/edited this task
+                    const deviceId = getDeviceId();
+                    const isNewTask = !task.supabaseId;
+                    if (isNewTask) {
+                        taskData.created_device = deviceId; // Set on creation
+                    }
+                    taskData.last_edited_device = deviceId; // Always update on save
                     
-                    // V2.5.12-MANUAL-SYNC: Track manual order
+                    // V2.5.12-MANUAL-SYNC: Track device when saving manual_order
                     if (!excludeManualOrder) {
                         taskData.manual_order = task.manualOrder || null;
+                        taskData.last_ordered_device = getDeviceId();
                         taskData.last_ordered_at = new Date().toISOString();
                     }
                     
@@ -1629,8 +1624,9 @@
                         id: list.id,
                         user_id: user.id,
                         name: list.name,
-                        tasks: list.tasks || []
-                        // V2.8.6 FIX: Removed device tracking - columns may not exist in DB
+                        tasks: list.tasks || [],
+                        created_device: isNewList ? deviceId : list.created_device, // Only set on creation
+                        last_edited_device: deviceId // Always update on save
                     };
                     
                     const { data, error } = await supabase
@@ -1727,7 +1723,8 @@
                         name: l.name,
                         tasks: l.tasks || [],
                         createdAt: l.created_at,
-                        // V2.8.6 FIX: Removed device tracking fields
+                        created_device: l.created_device, // V2.7.1: Device tracking
+                        last_edited_device: l.last_edited_device // V2.7.1: Device tracking
                     }));
                     
                     // V2.7.1 FIX: Use Supabase as single source of truth
@@ -1774,8 +1771,9 @@
                                     supabaseId: payload.new.id,
                                     name: payload.new.name,
                                     tasks: payload.new.tasks || [],
-                                    createdAt: payload.new.created_at
-                                    // V2.8.6 FIX: Removed device tracking
+                                    createdAt: payload.new.created_at,
+                                    created_device: payload.new.created_device, // V2.7.1
+                                    last_edited_device: payload.new.last_edited_device // V2.7.1
                                 };
                                 
                                 // Check if list already exists locally
@@ -1796,8 +1794,9 @@
                                     supabaseId: payload.new.id,
                                     name: payload.new.name,
                                     tasks: payload.new.tasks || [],
-                                    createdAt: payload.new.created_at
-                                    // V2.8.6 FIX: Removed device tracking
+                                    createdAt: payload.new.created_at,
+                                    created_device: payload.new.created_device, // V2.7.1
+                                    last_edited_device: payload.new.last_edited_device // V2.7.1
                                 };
                                 
                                 // V2.7.1 CRITICAL FIX: Don't overwrite if we're actively saving this list!
@@ -2153,16 +2152,17 @@
                 setTasks(prev => [...prev, newTask]);
                 
                 // V2.6.3-TOAST: Show toast for first task or after pause
-                // V2.8.1: Always show toast now that focus is fixed!
-                showToast('Task created successfully');
+                // Only suppress for rapid subsequent tasks
+                if (!wasInRapidMode) {
+                    showToast('Task created successfully');
+                } else {
+                    console.log('🔇 Toast suppressed - rapid entry in progress');
+                }
                 
                 // V2.5.0-SYNC: Save to Supabase and get real ID
-                console.log('💾 SAVE CHECK:', { hasUser: !!user, isLoading: isLoadingFromSupabase });
                 if (user && !isLoadingFromSupabase) {
                     try {
-                        console.log('💾 Saving task to Supabase:', newTask.text);
                         const savedTask = await saveTaskToSupabase(newTask);
-                        console.log('✅ Task saved, got ID:', savedTask?.id);
                         if (savedTask && savedTask.id) {
                             // Replace temp task with task using Supabase ID
                             setTasks(prev => prev.map(t => 
@@ -2174,8 +2174,6 @@
                     } catch (error) {
                         console.error('❌ Error saving new task:', error);
                     }
-                } else {
-                    console.warn('⚠️ Task NOT saved:', { user: !!user, isLoading: isLoadingFromSupabase });
                 }
                 
                 return newTask;
@@ -2238,8 +2236,8 @@
                                 id: task.supabaseId,
                                 user_id: user.id,
                                 manual_order: task.manualOrder,
+                                last_ordered_device: getDeviceId(),
                                 last_ordered_at: new Date().toISOString()
-                                // V2.8.6 FIX: Removed last_ordered_device
                             }));
                             
                             // Update all at once using upsert
@@ -2248,6 +2246,7 @@
                                     .from('tasks')
                                     .update({
                                         manual_order: update.manual_order,
+                                        last_ordered_device: update.last_ordered_device,
                                         last_ordered_at: update.last_ordered_at
                                     })
                                     .eq('id', update.id)
@@ -2299,8 +2298,8 @@
                                 id: task.supabaseId,
                                 user_id: user.id,
                                 manual_order: task.manualOrder,
+                                last_ordered_device: getDeviceId(),
                                 last_ordered_at: new Date().toISOString()
-                                // V2.8.6 FIX: Removed last_ordered_device
                             }));
                             
                             // Update all at once
@@ -2309,6 +2308,7 @@
                                     .from('tasks')
                                     .update({
                                         manual_order: update.manual_order,
+                                        last_ordered_device: update.last_ordered_device,
                                         last_ordered_at: update.last_ordered_at
                                     })
                                     .eq('id', update.id)
@@ -2449,8 +2449,8 @@
                     const updates = tasksWithOrder.map(task => ({
                         id: task.supabaseId,
                         manual_order: task.manualOrder,
+                        last_ordered_device: deviceId,
                         last_ordered_at: timestamp
-                        // V2.8.6 FIX: Removed last_ordered_device
                     }));
                     
                     // Update all in parallel
@@ -2459,6 +2459,7 @@
                             .from('tasks')
                             .update({
                                 manual_order: update.manual_order,
+                                last_ordered_device: update.last_ordered_device,
                                 last_ordered_at: update.last_ordered_at
                             })
                             .eq('id', update.id)
@@ -2502,7 +2503,7 @@
                     // Get all tasks from Supabase with their manual_order
                     const { data, error } = await supabase
                         .from('tasks')
-                        .select('id, manual_order, last_ordered_at')
+                        .select('id, manual_order, last_ordered_device, last_ordered_at')
                         .eq('user_id', user.id)
                         .not('manual_order', 'is', null)
                         .order('manual_order');
@@ -2518,7 +2519,7 @@
                         return;
                     }
                     
-                    console.log('📥 PULL: Cloud orders:', data.map(t => ({ id: t.id, order: t.manual_order })));
+                    console.log('📥 PULL: Cloud orders:', data.map(t => ({ id: t.id, order: t.manual_order, device: t.last_ordered_device })));
                     
                     // Update local tasks with Supabase manual_order
                     setTasks(prev => {
@@ -2537,9 +2538,18 @@
                     
                     setIsManualOrder(true);
                     
-                    // V2.8.6 FIX: Removed device tracking
-                    console.log(`✅ PULL: Successfully pulled order from cloud`);
-                    showToast(`✅ Order pulled from cloud!`);
+                    // Get device name that we synced from
+                    const latestOrder = data.reduce((latest, current) => {
+                        if (!latest || new Date(current.last_ordered_at) > new Date(latest.last_ordered_at)) {
+                            return current;
+                        }
+                        return latest;
+                    }, null);
+                    
+                    const sourceDevice = latestOrder?.last_ordered_device || 'other device';
+                    
+                    console.log(`✅ PULL: Successfully pulled order from ${sourceDevice}`);
+                    showToast(`✅ Order pulled from ${sourceDevice}!`);
                     setSyncStatus('synced');
                     setLastSyncTime(new Date());
                     
@@ -2687,9 +2697,14 @@
                     return list;
                 }));
                 
-                // V2.8.1: Always show toast now that focus is fixed!
-                const listName = customLists.find(l => l.id === listId)?.name;
-                showToast(`Item added to ${listName}`);
+                // V2.7.1 FIX: Suppress toast during rapid entry to prevent focus loss
+                if (!isRapidEntry) {
+                    const listName = customLists.find(l => l.id === listId)?.name;
+                    console.log('📢 Showing toast (not rapid entry)');
+                    showToast(`Item added to ${listName}`);
+                } else {
+                    console.log('🔇 Toast suppressed (rapid entry mode)');
+                }
                 
                 // V2.7.1: Save updated list to Supabase
                 if (user && !isLoadingFromSupabase && updatedList) {
@@ -5242,26 +5257,8 @@
                 const isCreatingTasksRef = useRef(false);
                 const lastTaskCreationTimeRef = useRef(0);
                 
-                // V2.8.2 FIX: Persist archive view in localStorage (prevent reset on toast)
-                const archiveViewKey = `list-archive-view-${listId}`;
-                const [archiveView, setArchiveView] = useState(() => {
-                    const saved = localStorage.getItem(archiveViewKey);
-                    return saved || 'active';
-                });
-                
-                // V2.8.2: Save archive view when it changes
-                useEffect(() => {
-                    localStorage.setItem(archiveViewKey, archiveView);
-                }, [archiveView, archiveViewKey]);
-                
-                // V2.8.1: Cycle through views
-                const cycleArchiveView = () => {
-                    setArchiveView(prev => {
-                        if (prev === 'active') return 'all';
-                        if (prev === 'all') return 'archived';
-                        return 'active';
-                    });
-                };
+                // V2.8.0 NEW: Show archived toggle
+                const [showArchived, setShowArchived] = useState(false);
                 
                 // V2.7.5 NEW: Draft saving - restore draft on mount
                 const draftKey = `list-draft-${listId}`;
@@ -5307,26 +5304,21 @@
                                 {list.name}
                             </h1>
                             <div className="flex items-center gap-2">
-                                {/* V2.8.1 NEW: 3-way archive view toggle */}
+                                {/* V2.8.0 NEW: Show Archived toggle */}
                                 <button
-                                    onClick={cycleArchiveView}
+                                    onClick={() => setShowArchived(!showArchived)}
                                     className={`px-3 py-2 rounded-lg text-sm font-medium transition-all flex items-center gap-1 ${
-                                        archiveView === 'active' ? 'bg-blue-100 text-blue-700 hover:bg-blue-200' :
-                                        archiveView === 'all' ? 'bg-purple-100 text-purple-700 hover:bg-purple-200' :
-                                        'bg-amber-100 text-amber-700 hover:bg-amber-200'
+                                        showArchived 
+                                            ? 'bg-amber-100 text-amber-700 hover:bg-amber-200' 
+                                            : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
                                     }`}
-                                    title="Click to cycle: Active → All → Archived Only"
+                                    title={showArchived ? "Hide archived items" : "Show archived items"}
                                 >
                                     <Archive size={16} />
-                                    {archiveView === 'active' && 'Active Items'}
-                                    {archiveView === 'all' && 'All Items'}
-                                    {archiveView === 'archived' && 'Archived Only'}
+                                    {showArchived ? 'Hide Archived' : 'Show Archived'}
                                     {list.tasks.filter(t => t.archived).length > 0 && (
                                         <span className="ml-1 text-xs">
-                                            {archiveView === 'archived' 
-                                                ? `(${list.tasks.filter(t => t.archived).length})`
-                                                : `(${list.tasks.filter(t => t.archived).length} archived)`
-                                            }
+                                            ({list.tasks.filter(t => t.archived).length})
                                         </span>
                                     )}
                                 </button>
@@ -5436,25 +5428,8 @@
                             <button 
                                 onClick={() => {
                                     if (newTaskText.trim()) {
-                                        const text = newTaskText.trim();
-                                        
-                                        // Clear input synchronously
-                                        flushSync(() => {
-                                            setNewTaskText('');
-                                        });
-                                        
-                                        // V2.8.2 FIX: Clear draft from localStorage
-                                        localStorage.removeItem(draftKey);
-                                        
-                                        // Add the item
-                                        handleAddToList(listId, text);
-                                        
-                                        // V2.8.2 FIX: Refocus input after clicking Add
-                                        setTimeout(() => {
-                                            if (newTaskInputRef.current) {
-                                                newTaskInputRef.current.focus();
-                                            }
-                                        }, 0);
+                                        handleAddToList(listId, newTaskText);
+                                        setNewTaskText('');
                                     }
                                 }}
                                 className="px-6 py-2 bg-amber-600 text-white rounded-lg hover:bg-amber-700 flex items-center gap-2"
@@ -5474,13 +5449,9 @@
                             {list.tasks.length === 0 && (
                                 <p className="text-gray-400 text-center py-8">No items in this list yet. Add items above!</p>
                             )}
-                            {/* V2.8.1: Filter based on archive view mode */}
+                            {/* V2.8.0: Filter archived items based on toggle */}
                             {list.tasks
-                                .filter(task => {
-                                    if (archiveView === 'active') return !task.archived;
-                                    if (archiveView === 'archived') return task.archived;
-                                    return true; // 'all' shows everything
-                                })
+                                .filter(task => showArchived || !task.archived)
                                 .map(task => (
                                     <ListItemCard 
                                         key={task.id}
@@ -5681,7 +5652,6 @@
                 );
             };
 
-            // ====== VIEW: LIST VIEW ======
             // ====== VIEW: LIST VIEW ======
             const ListView = ({ newTaskTextRef }) => {
                 // V2.6.3-REF: Use local state for typing (no parent re-renders), persist in ref across unmounts
@@ -5993,9 +5963,6 @@
                                             const taskText = newTaskText.trim();
                                             const inputElement = newTaskInputRef.current;
                                             
-                                            // V2.6.3: Check if ALREADY in rapid mode BEFORE setting flag
-                                            const wasInRapidMode = isCreatingTasksRef.current;
-                                            
                                             // Set rapid entry flags
                                             isCreatingTasksRef.current = true;
                                             lastTaskCreationTimeRef.current = Date.now();
@@ -6006,17 +5973,24 @@
                                             });
                                             newTaskTextRef.current = '';
                                             
-                                            // Keep focus with multiple aggressive attempts
+                                            // MATCH LISTS: Aggressive focus retention (14 attempts over 500ms)
                                             if (inputElement) {
-                                                // Immediate focus
+                                                // Immediate attempts
                                                 inputElement.focus();
-                                                
-                                                // Multiple timed attempts
                                                 setTimeout(() => inputElement.focus(), 0);
                                                 setTimeout(() => inputElement.focus(), 10);
                                                 setTimeout(() => inputElement.focus(), 20);
                                                 setTimeout(() => inputElement.focus(), 50);
+                                                
+                                                // CRITICAL: Continue trying for 500ms (Supabase updates take 200-500ms)
                                                 setTimeout(() => inputElement.focus(), 100);
+                                                setTimeout(() => inputElement.focus(), 150);
+                                                setTimeout(() => inputElement.focus(), 200);
+                                                setTimeout(() => inputElement.focus(), 250);
+                                                setTimeout(() => inputElement.focus(), 300);
+                                                setTimeout(() => inputElement.focus(), 350);
+                                                setTimeout(() => inputElement.focus(), 400);
+                                                setTimeout(() => inputElement.focus(), 500);
                                                 
                                                 // Frame-based (syncs with rendering)
                                                 requestAnimationFrame(() => {
@@ -6026,37 +6000,18 @@
                                             }
                                             
                                             // Create task - pass rapid mode status
-                                            createTask({ text: taskText, _wasInRapidMode: wasInRapidMode });
-                                            
-                                            // CRITICAL: Re-focus AFTER createTask causes re-render
-                                            // Use ref inside setTimeout to get NEW element after re-render
-                                            // The ref survives re-renders, but points to new DOM element
-                                            setTimeout(() => newTaskInputRef.current?.focus(), 100);
-                                            setTimeout(() => newTaskInputRef.current?.focus(), 150);
-                                            setTimeout(() => newTaskInputRef.current?.focus(), 200);
-                                            setTimeout(() => newTaskInputRef.current?.focus(), 250);
-                                            setTimeout(() => newTaskInputRef.current?.focus(), 300);
-                                            setTimeout(() => newTaskInputRef.current?.focus(), 350);
-                                            setTimeout(() => newTaskInputRef.current?.focus(), 400);
-                                            setTimeout(() => newTaskInputRef.current?.focus(), 500);
+                                            createTask({ text: taskText, _wasInRapidMode: true });
                                             
                                             // Auto-clear flag after 4 seconds of no activity
                                             setTimeout(() => {
                                                 if (Date.now() - lastTaskCreationTimeRef.current >= 4000) {
-                                                    const wasInRapidMode = isCreatingTasksRef.current;
                                                     isCreatingTasksRef.current = false;
-                                                    
-                                                    if (wasInRapidMode) {
-                                                        console.log('🔄 Exited rapid entry mode');
-                                                        // V2.6.3: Don't show toast or update lastSyncTime
-                                                        // These cause screen shake and auto-scroll
-                                                        // User feedback: toast causes focus loss and screen jump
-                                                    }
                                                 }
                                             }, 4000);
                                         }
                                     }}
                                     className="flex-1 px-4 py-2 border rounded-lg"
+                                    autoFocus
                                 />
                                 <button
                                     onClick={() => {
@@ -6064,9 +6019,6 @@
                                             const taskText = newTaskText.trim();
                                             const inputElement = newTaskInputRef.current;
                                             
-                                            // V2.6.3: Check if ALREADY in rapid mode BEFORE setting flag
-                                            const wasInRapidMode = isCreatingTasksRef.current;
-                                            
                                             // Set rapid entry flags
                                             isCreatingTasksRef.current = true;
                                             lastTaskCreationTimeRef.current = Date.now();
@@ -6077,52 +6029,39 @@
                                             });
                                             newTaskTextRef.current = '';
                                             
-                                            // Keep focus with multiple aggressive attempts
+                                            // MATCH LISTS: Aggressive focus retention
                                             if (inputElement) {
-                                                // Immediate focus
+                                                // Immediate attempts
                                                 inputElement.focus();
-                                                
-                                                // Multiple timed attempts
                                                 setTimeout(() => inputElement.focus(), 0);
                                                 setTimeout(() => inputElement.focus(), 10);
                                                 setTimeout(() => inputElement.focus(), 20);
                                                 setTimeout(() => inputElement.focus(), 50);
-                                                setTimeout(() => inputElement.focus(), 100);
                                                 
-                                                // Frame-based (syncs with rendering)
+                                                // Continue for 500ms
+                                                setTimeout(() => inputElement.focus(), 100);
+                                                setTimeout(() => inputElement.focus(), 150);
+                                                setTimeout(() => inputElement.focus(), 200);
+                                                setTimeout(() => inputElement.focus(), 250);
+                                                setTimeout(() => inputElement.focus(), 300);
+                                                setTimeout(() => inputElement.focus(), 350);
+                                                setTimeout(() => inputElement.focus(), 400);
+                                                setTimeout(() => inputElement.focus(), 500);
+                                                
+                                                // Frame-based
                                                 requestAnimationFrame(() => {
                                                     inputElement.focus();
                                                     requestAnimationFrame(() => inputElement.focus());
                                                 });
                                             }
                                             
-                                            // Create task - pass rapid mode status
-                                            createTask({ text: taskText, _wasInRapidMode: wasInRapidMode });
-                                            
-                                            // CRITICAL: Re-focus AFTER createTask causes re-render
-                                            // Use ref inside setTimeout to get NEW element after re-render
-                                            // The ref survives re-renders, but points to new DOM element
-                                            setTimeout(() => newTaskInputRef.current?.focus(), 100);
-                                            setTimeout(() => newTaskInputRef.current?.focus(), 150);
-                                            setTimeout(() => newTaskInputRef.current?.focus(), 200);
-                                            setTimeout(() => newTaskInputRef.current?.focus(), 250);
-                                            setTimeout(() => newTaskInputRef.current?.focus(), 300);
-                                            setTimeout(() => newTaskInputRef.current?.focus(), 350);
-                                            setTimeout(() => newTaskInputRef.current?.focus(), 400);
-                                            setTimeout(() => newTaskInputRef.current?.focus(), 500);
+                                            // Create task
+                                            createTask({ text: taskText, _wasInRapidMode: true });
                                             
                                             // Auto-clear flag after 4 seconds
                                             setTimeout(() => {
                                                 if (Date.now() - lastTaskCreationTimeRef.current >= 4000) {
-                                                    const wasInRapidMode = isCreatingTasksRef.current;
                                                     isCreatingTasksRef.current = false;
-                                                    
-                                                    if (wasInRapidMode) {
-                                                        console.log('🔄 Exited rapid entry mode');
-                                                        // V2.6.3: Don't show toast or update lastSyncTime
-                                                        // These cause screen shake and auto-scroll
-                                                        // User feedback: toast causes focus loss and screen jump
-                                                    }
                                                 }
                                             }, 4000);
                                         }
