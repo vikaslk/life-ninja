@@ -196,11 +196,12 @@
         };
         
         console.log('═══════════════════════════════════════════════');
-        console.log('🚀 VERSION: V2.10.1-DATABASE-FIX-JAN17-1035 🚀');
-        console.log('🔧 CRITICAL: Removed device tracking columns');
-        console.log('✅ Database saves working again');
+        console.log('🚀 VERSION: V2.10.2-DEVICE-TRACKING-ENABLED-JAN17-1520 🚀');
+        console.log('✅ Device tracking fully enabled');
+        console.log('✅ created_device, last_edited_device, last_ordered_device');
+        console.log('✅ Lists Add button now clears text properly');
         console.log('✅ All V2.10.0 typing improvements preserved');
-        console.log('📋 See migration SQL for device tracking feature');
+        console.log('📊 Ready for V2.8.0+ Device Analytics Dashboard');
         console.log('═══════════════════════════════════════════════');
         console.log('🖥️ Device detected:', getDeviceId());
         
@@ -762,19 +763,18 @@
                         subtasks: task.subtasks || []
                     };
                     
-                    // V2.10.1 FIX: Device tracking columns removed (don't exist in DB yet)
-                    // TODO: Add back after running SQL migration (see V2.10.1_DEVICE_TRACKING_MIGRATION.sql)
-                    // const deviceId = getDeviceId();
-                    // const isNewTask = !task.supabaseId;
-                    // if (isNewTask) {
-                    //     taskData.created_device = deviceId;
-                    // }
-                    // taskData.last_edited_device = deviceId;
+                    // V2.10.2: Device tracking enabled (SQL migration completed)
+                    const deviceId = getDeviceId();
+                    const isNewTask = !task.supabaseId;
+                    if (isNewTask) {
+                        taskData.created_device = deviceId;
+                    }
+                    taskData.last_edited_device = deviceId;
                     
                     // V2.5.12-MANUAL-SYNC: Manual order tracking
                     if (!excludeManualOrder) {
                         taskData.manual_order = task.manualOrder || null;
-                        // V2.10.1: Removed last_ordered_device (column doesn't exist)
+                        taskData.last_ordered_device = getDeviceId();  // V2.10.2: Re-enabled
                         taskData.last_ordered_at = new Date().toISOString();
                     }
                     
@@ -2236,7 +2236,7 @@
                                 id: task.supabaseId,
                                 user_id: user.id,
                                 manual_order: task.manualOrder,
-                                // V2.10.1: Removed last_ordered_device (column doesn't exist)
+                                last_ordered_device: getDeviceId(),  // V2.10.2: Re-enabled
                                 last_ordered_at: new Date().toISOString()
                             }));
                             
@@ -2246,7 +2246,7 @@
                                     .from('tasks')
                                     .update({
                                         manual_order: update.manual_order,
-                                        // V2.10.1: Removed last_ordered_device
+                                        last_ordered_device: update.last_ordered_device,  // V2.10.2: Re-enabled
                                         last_ordered_at: update.last_ordered_at
                                     })
                                     .eq('id', update.id)
@@ -2298,7 +2298,7 @@
                                 id: task.supabaseId,
                                 user_id: user.id,
                                 manual_order: task.manualOrder,
-                                // V2.10.1: Removed last_ordered_device (column doesn't exist)
+                                last_ordered_device: getDeviceId(),  // V2.10.2: Re-enabled
                                 last_ordered_at: new Date().toISOString()
                             }));
                             
@@ -2308,7 +2308,7 @@
                                     .from('tasks')
                                     .update({
                                         manual_order: update.manual_order,
-                                        // V2.10.1: Removed last_ordered_device
+                                        last_ordered_device: update.last_ordered_device,  // V2.10.2: Re-enabled
                                         last_ordered_at: update.last_ordered_at
                                     })
                                     .eq('id', update.id)
@@ -2449,7 +2449,7 @@
                     const updates = tasksWithOrder.map(task => ({
                         id: task.supabaseId,
                         manual_order: task.manualOrder,
-                        // V2.10.1: Removed last_ordered_device (column doesn't exist)
+                        last_ordered_device: deviceId,  // V2.10.2: Re-enabled
                         last_ordered_at: timestamp
                     }));
                     
@@ -2459,7 +2459,7 @@
                             .from('tasks')
                             .update({
                                 manual_order: update.manual_order,
-                                // V2.10.1: Removed last_ordered_device
+                                last_ordered_device: update.last_ordered_device,  // V2.10.2: Re-enabled
                                 last_ordered_at: update.last_ordered_at
                             })
                             .eq('id', update.id)
@@ -2503,7 +2503,7 @@
                     // Get all tasks from Supabase with their manual_order
                     const { data, error } = await supabase
                         .from('tasks')
-                        .select('id, manual_order, last_ordered_at')  // V2.10.1: Removed last_ordered_device
+                        .select('id, manual_order, last_ordered_device, last_ordered_at')  // V2.10.2: Re-enabled
                         .eq('user_id', user.id)
                         .not('manual_order', 'is', null)
                         .order('manual_order');
@@ -2519,7 +2519,7 @@
                         return;
                     }
                     
-                    console.log('📥 PULL: Cloud orders:', data.map(t => ({ id: t.id, order: t.manual_order })));
+                    console.log('📥 PULL: Cloud orders:', data.map(t => ({ id: t.id, order: t.manual_order, device: t.last_ordered_device })));
                     
                     // Update local tasks with Supabase manual_order
                     setTasks(prev => {
@@ -2538,9 +2538,18 @@
                     
                     setIsManualOrder(true);
                     
-                    // V2.10.1: Simplified message (no device name)
-                    console.log('✅ PULL: Successfully pulled order from cloud');
-                    showToast('✅ Order pulled from cloud!');
+                    // V2.10.2: Restored device name in message
+                    const latestOrder = data.reduce((latest, current) => {
+                        if (!latest || new Date(current.last_ordered_at) > new Date(latest.last_ordered_at)) {
+                            return current;
+                        }
+                        return latest;
+                    }, null);
+                    
+                    const sourceDevice = latestOrder?.last_ordered_device || 'cloud';
+                    
+                    console.log(`✅ PULL: Successfully pulled order from ${sourceDevice}`);
+                    showToast(`✅ Order pulled from ${sourceDevice}!`);
                     setSyncStatus('synced');
                     setLastSyncTime(new Date());
                     
@@ -5419,8 +5428,53 @@
                             <button 
                                 onClick={() => {
                                     if (newTaskText.trim()) {
-                                        handleAddToList(listId, newTaskText);
-                                        setNewTaskText('');
+                                        const text = newTaskText.trim();
+                                        const inputElement = newTaskInputRef.current;
+                                        
+                                        // Set rapid entry mode
+                                        isCreatingTasksRef.current = true;
+                                        lastTaskCreationTimeRef.current = Date.now();
+                                        
+                                        // Clear SYNCHRONOUSLY with flushSync
+                                        flushSync(() => {
+                                            setNewTaskText('');
+                                        });
+                                        
+                                        // Clear draft from localStorage
+                                        localStorage.removeItem(draftKey);
+                                        
+                                        // Keep focus with aggressive attempts
+                                        if (inputElement) {
+                                            inputElement.focus();
+                                            setTimeout(() => inputElement.focus(), 0);
+                                            setTimeout(() => inputElement.focus(), 10);
+                                            setTimeout(() => inputElement.focus(), 20);
+                                            setTimeout(() => inputElement.focus(), 50);
+                                            setTimeout(() => inputElement.focus(), 100);
+                                            setTimeout(() => inputElement.focus(), 150);
+                                            setTimeout(() => inputElement.focus(), 200);
+                                            setTimeout(() => inputElement.focus(), 250);
+                                            setTimeout(() => inputElement.focus(), 300);
+                                            setTimeout(() => inputElement.focus(), 350);
+                                            setTimeout(() => inputElement.focus(), 400);
+                                            setTimeout(() => inputElement.focus(), 500);
+                                            
+                                            requestAnimationFrame(() => {
+                                                inputElement.focus();
+                                                requestAnimationFrame(() => inputElement.focus());
+                                            });
+                                        }
+                                        
+                                        // Add the task (pass rapid mode flag)
+                                        handleAddToList(listId, text, true);
+                                        
+                                        // Exit rapid mode after delay
+                                        setTimeout(() => {
+                                            const timeSince = Date.now() - lastTaskCreationTimeRef.current;
+                                            if (timeSince >= 4000) {
+                                                isCreatingTasksRef.current = false;
+                                            }
+                                        }, 4000);
                                     }
                                 }}
                                 className="px-6 py-2 bg-amber-600 text-white rounded-lg hover:bg-amber-700 flex items-center gap-2"
