@@ -196,11 +196,11 @@
         };
         
         console.log('═══════════════════════════════════════════════');
-        console.log('🚀 VERSION: V2.9.0-CLOSURE-FIX-JAN15-0430 🚀');
-        console.log('🎯 KEY FIX: createTask via closure, NOT prop!');
-        console.log('✅ SAME AS LISTS: Stable props = No re-renders');
-        console.log('🏗️ ARCHITECTURE: Perfect match with lists');
-        console.log('💾 SUPABASE: Saves working perfectly');
+        console.log('🚀 VERSION: V2.HYBRID-STABLE-BASELINE 🚀');
+        console.log('📦 LISTS: From v2.9.0 (Superior implementation)');
+        console.log('📦 TASKS: From v2.8.0 (Stable, working)');
+        console.log('✅ HYBRID: Best of both worlds combined');
+        console.log('🎯 STATUS: Ready for testing and enhancement');
         console.log('═══════════════════════════════════════════════');
         console.log('🖥️ Device detected:', getDeviceId());
         
@@ -5682,113 +5682,34 @@
             };
 
             // ====== VIEW: LIST VIEW ======
-            // V2.9.0 FIX: Access createTask via closure (NOT as prop!)
-            // Same pattern as lists - no props means no re-renders!
-            const QuickTaskInput = React.memo(({ isCreatingTasksRef, lastTaskCreationTimeRef }) => {
-                const [newTaskText, setNewTaskText] = useState('');
-                const newTaskTextRef = useRef('');
-                const newTaskInputRef = useRef(null);
-                
-                const handleCreate = useCallback((taskText, wasInRapidMode) => {
-                    const inputElement = newTaskInputRef.current;
-                    
-                    // Set rapid entry flags
-                    isCreatingTasksRef.current = true;
-                    lastTaskCreationTimeRef.current = Date.now();
-                    
-                    // Clear state SYNCHRONOUSLY using flushSync
-                    flushSync(() => {
-                        setNewTaskText('');
-                    });
-                    newTaskTextRef.current = '';
-                    
-                    // V2.8.8: Aggressive focus (same as lists)
-                    if (inputElement) {
-                        // Immediate attempts
-                        inputElement.focus();
-                        setTimeout(() => inputElement.focus(), 0);
-                        setTimeout(() => inputElement.focus(), 10);
-                        setTimeout(() => inputElement.focus(), 20);
-                        setTimeout(() => inputElement.focus(), 50);
-                        
-                        // CRITICAL: Continue trying for 500ms
-                        setTimeout(() => inputElement.focus(), 100);
-                        setTimeout(() => inputElement.focus(), 150);
-                        setTimeout(() => inputElement.focus(), 200);
-                        setTimeout(() => inputElement.focus(), 250);
-                        setTimeout(() => inputElement.focus(), 300);
-                        setTimeout(() => inputElement.focus(), 350);
-                        setTimeout(() => inputElement.focus(), 400);
-                        setTimeout(() => inputElement.focus(), 500);
-                        
-                        // Frame-based (syncs with rendering)
-                        requestAnimationFrame(() => {
-                            inputElement.focus();
-                            requestAnimationFrame(() => inputElement.focus());
-                        });
-                    }
-                    
-                    // V2.9.0 FIX: Access createTask via closure (stable reference!)
-                    createTask({ text: taskText, _wasInRapidMode: wasInRapidMode });
-                    
-                    // Auto-clear flag after 4 seconds
-                    setTimeout(() => {
-                        if (Date.now() - lastTaskCreationTimeRef.current >= 4000) {
-                            isCreatingTasksRef.current = false;
-                        }
-                    }, 4000);
-                }, [isCreatingTasksRef, lastTaskCreationTimeRef]); // No onCreateTask dependency!
-                
-                return (
-                    <div className="bg-white rounded-lg shadow p-4">
-                        <div className="flex gap-2">
-                            <input
-                                key="main-task-input-stable"
-                                ref={newTaskInputRef}
-                                type="text"
-                                placeholder="Add a new task..."
-                                value={newTaskText}
-                                onChange={(e) => {
-                                    setNewTaskText(e.target.value);
-                                    // Extend rapid entry window while typing
-                                    if (isCreatingTasksRef.current && e.target.value.trim().length > 0) {
-                                        lastTaskCreationTimeRef.current = Date.now();
-                                    }
-                                }}
-                                onKeyDown={(e) => {
-                                    if (e.key === 'Enter' && newTaskText.trim()) {
-                                        e.preventDefault();
-                                        e.stopPropagation();
-                                        const taskText = newTaskText.trim();
-                                        const wasInRapidMode = isCreatingTasksRef.current;
-                                        handleCreate(taskText, wasInRapidMode);
-                                    }
-                                }}
-                                className="flex-1 px-4 py-2 border rounded-lg"
-                            />
-                            <button
-                                onClick={() => {
-                                    if (newTaskText.trim()) {
-                                        const taskText = newTaskText.trim();
-                                        const wasInRapidMode = isCreatingTasksRef.current;
-                                        handleCreate(taskText, wasInRapidMode);
-                                    }
-                                }}
-                                className="px-6 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700"
-                            >
-                                Add
-                            </button>
-                        </div>
-                    </div>
-                );
-            });
-            
+            // ====== VIEW: LIST VIEW ======
             const ListView = ({ newTaskTextRef }) => {
-                // V2.8.8: Removed newTaskText state - now in isolated QuickTaskInput component
+                // V2.6.3-REF: Use local state for typing (no parent re-renders), persist in ref across unmounts
+                const [newTaskText, setNewTaskText] = useState(() => newTaskTextRef.current || '');
                 const [localSearch, setLocalSearch] = useState(searchQuery);
                 const searchTimeoutRef = useRef(null);
+                const newTaskInputRef = useRef(null);
                 
-                // V2.8.8: Removed aggressive refocus effect - QuickTaskInput handles its own focus
+                // V2.6.3-AGGRESSIVE: Refocus input whenever tasks change during rapid entry
+                useEffect(() => {
+                    if (isCreatingTasksRef.current && newTaskInputRef.current) {
+                        // Tasks changed, we're in rapid entry mode, refocus NOW
+                        newTaskInputRef.current.focus();
+                        
+                        // Multiple attempts to fight any focus stealing
+                        setTimeout(() => newTaskInputRef.current?.focus(), 0);
+                        setTimeout(() => newTaskInputRef.current?.focus(), 10);
+                        setTimeout(() => newTaskInputRef.current?.focus(), 50);
+                        setTimeout(() => newTaskInputRef.current?.focus(), 100);
+                    }
+                }, [tasks.length]); // Re-run when tasks array length changes
+                
+                // Save to ref before unmount
+                useEffect(() => {
+                    return () => {
+                        newTaskTextRef.current = newTaskText;
+                    };
+                }, [newTaskText, newTaskTextRef]);
 
                 return (
                     <div className="space-y-4">
@@ -6050,11 +5971,168 @@
                             </div>
                         </div>
 
-                        {/* V2.9.0: Isolated component - accesses createTask via closure! */}
-                        <QuickTaskInput 
-                            isCreatingTasksRef={isCreatingTasksRef}
-                            lastTaskCreationTimeRef={lastTaskCreationTimeRef}
-                        />
+                        {/* Quick add task */}
+                        <div className="bg-white rounded-lg shadow p-4">
+                            <div className="flex gap-2">
+                                <input
+                                    ref={newTaskInputRef}
+                                    type="text"
+                                    placeholder="Add a new task..."
+                                    value={newTaskText}
+                                    onChange={(e) => {
+                                        setNewTaskText(e.target.value);
+                                        // Extend rapid entry window while typing
+                                        if (isCreatingTasksRef.current && e.target.value.trim().length > 0) {
+                                            lastTaskCreationTimeRef.current = Date.now();
+                                        }
+                                    }}
+                                    onKeyDown={(e) => {
+                                        if (e.key === 'Enter' && newTaskText.trim()) {
+                                            e.preventDefault();
+                                            e.stopPropagation();
+                                            const taskText = newTaskText.trim();
+                                            const inputElement = newTaskInputRef.current;
+                                            
+                                            // V2.6.3: Check if ALREADY in rapid mode BEFORE setting flag
+                                            const wasInRapidMode = isCreatingTasksRef.current;
+                                            
+                                            // Set rapid entry flags
+                                            isCreatingTasksRef.current = true;
+                                            lastTaskCreationTimeRef.current = Date.now();
+                                            
+                                            // Clear state SYNCHRONOUSLY using flushSync
+                                            flushSync(() => {
+                                                setNewTaskText('');
+                                            });
+                                            newTaskTextRef.current = '';
+                                            
+                                            // Keep focus with multiple aggressive attempts
+                                            if (inputElement) {
+                                                // Immediate focus
+                                                inputElement.focus();
+                                                
+                                                // Multiple timed attempts
+                                                setTimeout(() => inputElement.focus(), 0);
+                                                setTimeout(() => inputElement.focus(), 10);
+                                                setTimeout(() => inputElement.focus(), 20);
+                                                setTimeout(() => inputElement.focus(), 50);
+                                                setTimeout(() => inputElement.focus(), 100);
+                                                
+                                                // Frame-based (syncs with rendering)
+                                                requestAnimationFrame(() => {
+                                                    inputElement.focus();
+                                                    requestAnimationFrame(() => inputElement.focus());
+                                                });
+                                            }
+                                            
+                                            // Create task - pass rapid mode status
+                                            createTask({ text: taskText, _wasInRapidMode: wasInRapidMode });
+                                            
+                                            // CRITICAL: Re-focus AFTER createTask causes re-render
+                                            // Use ref inside setTimeout to get NEW element after re-render
+                                            // The ref survives re-renders, but points to new DOM element
+                                            setTimeout(() => newTaskInputRef.current?.focus(), 100);
+                                            setTimeout(() => newTaskInputRef.current?.focus(), 150);
+                                            setTimeout(() => newTaskInputRef.current?.focus(), 200);
+                                            setTimeout(() => newTaskInputRef.current?.focus(), 250);
+                                            setTimeout(() => newTaskInputRef.current?.focus(), 300);
+                                            setTimeout(() => newTaskInputRef.current?.focus(), 350);
+                                            setTimeout(() => newTaskInputRef.current?.focus(), 400);
+                                            setTimeout(() => newTaskInputRef.current?.focus(), 500);
+                                            
+                                            // Auto-clear flag after 4 seconds of no activity
+                                            setTimeout(() => {
+                                                if (Date.now() - lastTaskCreationTimeRef.current >= 4000) {
+                                                    const wasInRapidMode = isCreatingTasksRef.current;
+                                                    isCreatingTasksRef.current = false;
+                                                    
+                                                    if (wasInRapidMode) {
+                                                        console.log('🔄 Exited rapid entry mode');
+                                                        // V2.6.3: Don't show toast or update lastSyncTime
+                                                        // These cause screen shake and auto-scroll
+                                                        // User feedback: toast causes focus loss and screen jump
+                                                    }
+                                                }
+                                            }, 4000);
+                                        }
+                                    }}
+                                    className="flex-1 px-4 py-2 border rounded-lg"
+                                />
+                                <button
+                                    onClick={() => {
+                                        if (newTaskText.trim()) {
+                                            const taskText = newTaskText.trim();
+                                            const inputElement = newTaskInputRef.current;
+                                            
+                                            // V2.6.3: Check if ALREADY in rapid mode BEFORE setting flag
+                                            const wasInRapidMode = isCreatingTasksRef.current;
+                                            
+                                            // Set rapid entry flags
+                                            isCreatingTasksRef.current = true;
+                                            lastTaskCreationTimeRef.current = Date.now();
+                                            
+                                            // Clear state SYNCHRONOUSLY using flushSync
+                                            flushSync(() => {
+                                                setNewTaskText('');
+                                            });
+                                            newTaskTextRef.current = '';
+                                            
+                                            // Keep focus with multiple aggressive attempts
+                                            if (inputElement) {
+                                                // Immediate focus
+                                                inputElement.focus();
+                                                
+                                                // Multiple timed attempts
+                                                setTimeout(() => inputElement.focus(), 0);
+                                                setTimeout(() => inputElement.focus(), 10);
+                                                setTimeout(() => inputElement.focus(), 20);
+                                                setTimeout(() => inputElement.focus(), 50);
+                                                setTimeout(() => inputElement.focus(), 100);
+                                                
+                                                // Frame-based (syncs with rendering)
+                                                requestAnimationFrame(() => {
+                                                    inputElement.focus();
+                                                    requestAnimationFrame(() => inputElement.focus());
+                                                });
+                                            }
+                                            
+                                            // Create task - pass rapid mode status
+                                            createTask({ text: taskText, _wasInRapidMode: wasInRapidMode });
+                                            
+                                            // CRITICAL: Re-focus AFTER createTask causes re-render
+                                            // Use ref inside setTimeout to get NEW element after re-render
+                                            // The ref survives re-renders, but points to new DOM element
+                                            setTimeout(() => newTaskInputRef.current?.focus(), 100);
+                                            setTimeout(() => newTaskInputRef.current?.focus(), 150);
+                                            setTimeout(() => newTaskInputRef.current?.focus(), 200);
+                                            setTimeout(() => newTaskInputRef.current?.focus(), 250);
+                                            setTimeout(() => newTaskInputRef.current?.focus(), 300);
+                                            setTimeout(() => newTaskInputRef.current?.focus(), 350);
+                                            setTimeout(() => newTaskInputRef.current?.focus(), 400);
+                                            setTimeout(() => newTaskInputRef.current?.focus(), 500);
+                                            
+                                            // Auto-clear flag after 4 seconds
+                                            setTimeout(() => {
+                                                if (Date.now() - lastTaskCreationTimeRef.current >= 4000) {
+                                                    const wasInRapidMode = isCreatingTasksRef.current;
+                                                    isCreatingTasksRef.current = false;
+                                                    
+                                                    if (wasInRapidMode) {
+                                                        console.log('🔄 Exited rapid entry mode');
+                                                        // V2.6.3: Don't show toast or update lastSyncTime
+                                                        // These cause screen shake and auto-scroll
+                                                        // User feedback: toast causes focus loss and screen jump
+                                                    }
+                                                }
+                                            }, 4000);
+                                        }
+                                    }}
+                                    className="px-6 py-2 bg-indigo-600 text-white rounded-lg font-semibold hover:bg-indigo-700"
+                                >
+                                    <Plus size={20} />
+                                </button>
+                            </div>
+                        </div>
 
                         {/* Task list */}
                         <div className="bg-white rounded-lg shadow p-4">
