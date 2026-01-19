@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Life Ninja V2.11.1 - Analytics Dashboard (Fixed)</title>
+    <title>Life Ninja V2.11.2 - Analytics (Final Fix)</title>
     <script src="https://cdn.tailwindcss.com"></script>
     
     <script crossorigin src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
@@ -197,12 +197,12 @@
         };
         
         console.log('═══════════════════════════════════════════════');
-        console.log('🚀 VERSION: V2.11.1-ANALYTICS-FIXES-JAN19-1630 🚀');
-        console.log('🔧 FIXED: Analytics now updates when tasks complete');
-        console.log('🔧 FIXED: No more screen scroll when clicking checkboxes');
-        console.log('🔧 FIXED: Focus only maintained during rapid typing');
-        console.log('✅ Conditional focus - respects user actions');
-        console.log('✅ Smarter real-time sync - only skips when typing');
+        console.log('🚀 VERSION: V2.11.2-ANALYTICS-FINAL-FIX-JAN19-1930 🚀');
+        console.log('🔧 FIX #1: Analytics filters by COMPLETION date');
+        console.log('🔧 FIX #2: Scroll position preserved on status changes');
+        console.log('✅ Completing old tasks now counts in Analytics');
+        console.log('✅ No more screen jump when clicking checkboxes');
+        console.log('✅ All V2.11.1 fixes preserved');
         console.log('📊 Analytics Dashboard fully functional');
         console.log('═══════════════════════════════════════════════');
         console.log('🖥️ Device detected:', getDeviceId());
@@ -2571,6 +2571,10 @@
             };
 
             const toggleTaskStatus = (taskId) => {
+                // V2.11.2: Save scroll position before status change
+                const scrollY = window.scrollY;
+                const scrollX = window.scrollX;
+                
                 // V2.11.1: Clear rapid entry mode when user clicks checkbox
                 // This prevents focus from jumping back to input
                 isCreatingTasksRef.current = false;
@@ -2605,6 +2609,15 @@
                 }
 
                 updateTask(taskId, updates);
+                
+                // V2.11.2: Restore scroll position after state update
+                // Use multiple methods to ensure it works
+                requestAnimationFrame(() => {
+                    window.scrollTo(scrollX, scrollY);
+                    requestAnimationFrame(() => {
+                        window.scrollTo(scrollX, scrollY);
+                    });
+                });
             };
 
             const addSubtask = (parentId, subtaskText) => {
@@ -2771,6 +2784,13 @@
             };
 
             const handleToggleListTaskStatus = async (taskId, listId) => {
+                // V2.11.2: Save scroll position before status change
+                const scrollY = window.scrollY;
+                const scrollX = window.scrollX;
+                
+                // V2.11.2: Clear rapid entry mode
+                isCreatingTasksRef.current = false;
+                
                 // V2.7.1: Update local state and capture updated list
                 let updatedList = null;
                 setCustomLists(prev => prev.map(list => {
@@ -2807,6 +2827,14 @@
                 if (user && !isLoadingFromSupabase && updatedList) {
                     await saveListToSupabase(updatedList);
                 }
+                
+                // V2.11.2: Restore scroll position
+                requestAnimationFrame(() => {
+                    window.scrollTo(scrollX, scrollY);
+                    requestAnimationFrame(() => {
+                        window.scrollTo(scrollX, scrollY);
+                    });
+                });
             };
             
             const handleUpdateListTaskText = async (taskId, listId, newText) => {
@@ -8571,21 +8599,22 @@
                 
                 // Calculate analytics
                 const analytics = useMemo(() => {
-                    // Filter tasks by date range
-                    const filteredTasks = tasks.filter(t => 
-                        isInRange(t.created_at) || isInRange(t.updated_at)
+                    // V2.11.2 FIX: Different filtering logic for different metrics
+                    
+                    // Total Tasks: filter by creation date
+                    const tasksCreatedInRange = tasks.filter(t => isInRange(t.created_at));
+                    const totalTasks = tasksCreatedInRange.length;
+                    
+                    // Completed Tasks: filter by COMPLETION date (not creation date!)
+                    const tasksCompletedInRange = tasks.filter(t => 
+                        t.status === 'completed' && 
+                        t.completedAt && 
+                        isInRange(t.completedAt)
                     );
+                    const completedTasks = tasksCompletedInRange.length;
                     
-                    const completed = filteredTasks.filter(t => t.status === 'completed');
-                    
-                    // Total tasks
-                    const totalTasks = filteredTasks.length;
-                    
-                    // Completed tasks
-                    const completedTasks = completed.length;
-                    
-                    // Total points (based on priority rating)
-                    const totalPoints = filteredTasks.reduce((sum, task) => {
+                    // Total points: from tasks COMPLETED in range
+                    const totalPoints = tasksCompletedInRange.reduce((sum, task) => {
                         const priority = task.priority_rating !== undefined ? task.priority_rating : 5;
                         return sum + priority;
                     }, 0);
@@ -8720,7 +8749,7 @@
                         <div className="text-center">
                             <div className="animate-spin rounded-full h-16 w-16 border-b-4 border-indigo-600 mx-auto mb-4"></div>
                             <p className="text-gray-600">Loading Life Ninja...</p>
-                            <p className="text-gray-400 text-sm mt-2">V2.11.1</p>
+                            <p className="text-gray-400 text-sm mt-2">V2.11.2</p>
                         </div>
                     </div>
                 );
@@ -8734,7 +8763,7 @@
                             <div className="text-center mb-8">
                                 <Target className="text-indigo-600 mx-auto mb-4" size={48} />
                                 <h1 className="text-3xl font-bold text-gray-900 mb-2">Life Ninja</h1>
-                                <p className="text-gray-600">V2.11.1 • Analytics (Fixed)</p>
+                                <p className="text-gray-600">V2.11.2 • Analytics Fixed</p>
                             </div>
                             
                             <div className="mb-6">
