@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Life Ninja V2.11.0 - Analytics Dashboard (Phase 1)</title>
+    <title>Life Ninja V2.11.1 - Analytics Dashboard (Fixed)</title>
     <script src="https://cdn.tailwindcss.com"></script>
     
     <script crossorigin src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
@@ -197,12 +197,13 @@
         };
         
         console.log('═══════════════════════════════════════════════');
-        console.log('🚀 VERSION: V2.11.0-PHASE1-ANALYTICS-JAN17-1600 🚀');
-        console.log('📊 Analytics Dashboard - Phase 1 Complete');
-        console.log('✅ Overview cards: Tasks, Completed, Points, Streak');
-        console.log('✅ Time period filter: Today → All Time');
-        console.log('✅ All V2.10.2 features preserved');
-        console.log('⏭️  Phase 2: Charts coming next week');
+        console.log('🚀 VERSION: V2.11.1-ANALYTICS-FIXES-JAN19-1630 🚀');
+        console.log('🔧 FIXED: Analytics now updates when tasks complete');
+        console.log('🔧 FIXED: No more screen scroll when clicking checkboxes');
+        console.log('🔧 FIXED: Focus only maintained during rapid typing');
+        console.log('✅ Conditional focus - respects user actions');
+        console.log('✅ Smarter real-time sync - only skips when typing');
+        console.log('📊 Analytics Dashboard fully functional');
         console.log('═══════════════════════════════════════════════');
         console.log('🖥️ Device detected:', getDeviceId());
         
@@ -1159,19 +1160,25 @@
                                     // Order is device-local, synced manually via button
                                 };
                                 
-                                // V2.6.3-TYPING-FIX: Skip update if user is actively editing ANY field
+                                // V2.11.1-FIX: Smarter skip logic - only skip if user is ACTIVELY typing
                                 // Check 1: Is user editing this specific task?
                                 if (editingTask === updatedTask.id) {
                                     console.log('⏭️ Skipping real-time update - task is being edited:', updatedTask.text);
                                     return;
                                 }
                                 
-                                // Check 2: Is user typing in ANY input field?
-                                const activeElement = document.activeElement;
-                                if (activeElement && (activeElement.tagName === 'INPUT' || activeElement.tagName === 'TEXTAREA')) {
-                                    console.log('⏭️ Skipping real-time update - user is typing in input field');
-                                    return;
+                                // Check 2: Is user ACTIVELY typing (rapid entry mode)?
+                                // V2.11.1: Changed from checking activeElement to checking rapid entry state
+                                if (isCreatingTasksRef.current) {
+                                    const timeSince = Date.now() - lastTaskCreationTimeRef.current;
+                                    if (timeSince < 2000) { // Only skip if typed within last 2 seconds
+                                        console.log('⏭️ Skipping real-time update - user is actively typing (rapid entry mode)');
+                                        return;
+                                    }
                                 }
+                                
+                                // V2.11.1: Allow updates when user is just clicking around UI
+                                // Even if input happens to have focus, allow updates unless actively typing
                                 
                                 // SURGICAL FIX #2: Merge updates instead of replacing
                                 // This preserves any local changes that haven't synced yet
@@ -2564,6 +2571,10 @@
             };
 
             const toggleTaskStatus = (taskId) => {
+                // V2.11.1: Clear rapid entry mode when user clicks checkbox
+                // This prevents focus from jumping back to input
+                isCreatingTasksRef.current = false;
+                
                 const task = tasks.find(t => t.id === taskId);
                 if (!task) return;
 
@@ -5384,29 +5395,36 @@
                                         console.log('💾 Draft cleared from storage');
                                         
                                         // Keep focus with aggressive attempts
+                                        // V2.11.1: CONDITIONAL - only focus if still in rapid entry mode
                                         if (inputElement) {
+                                            // Helper: Check if should still focus
+                                            const shouldFocus = () => {
+                                                const timeSince = Date.now() - lastTaskCreationTimeRef.current;
+                                                return isCreatingTasksRef.current && timeSince < 2000;
+                                            };
+                                            
                                             console.log('🎯 Starting focus retention');
                                             // Immediate attempts
-                                            inputElement.focus();
-                                            setTimeout(() => inputElement.focus(), 0);
-                                            setTimeout(() => inputElement.focus(), 10);
-                                            setTimeout(() => inputElement.focus(), 20);
-                                            setTimeout(() => inputElement.focus(), 50);
+                                            if (shouldFocus()) inputElement.focus();
+                                            setTimeout(() => { if (shouldFocus()) inputElement.focus(); }, 0);
+                                            setTimeout(() => { if (shouldFocus()) inputElement.focus(); }, 10);
+                                            setTimeout(() => { if (shouldFocus()) inputElement.focus(); }, 20);
+                                            setTimeout(() => { if (shouldFocus()) inputElement.focus(); }, 50);
                                             
                                             // CRITICAL: Continue trying for 500ms (Supabase updates take 200-500ms)
-                                            setTimeout(() => inputElement.focus(), 100);
-                                            setTimeout(() => inputElement.focus(), 150);
-                                            setTimeout(() => inputElement.focus(), 200);
-                                            setTimeout(() => inputElement.focus(), 250);
-                                            setTimeout(() => inputElement.focus(), 300);
-                                            setTimeout(() => inputElement.focus(), 350);
-                                            setTimeout(() => inputElement.focus(), 400);
-                                            setTimeout(() => inputElement.focus(), 500);
+                                            setTimeout(() => { if (shouldFocus()) inputElement.focus(); }, 100);
+                                            setTimeout(() => { if (shouldFocus()) inputElement.focus(); }, 150);
+                                            setTimeout(() => { if (shouldFocus()) inputElement.focus(); }, 200);
+                                            setTimeout(() => { if (shouldFocus()) inputElement.focus(); }, 250);
+                                            setTimeout(() => { if (shouldFocus()) inputElement.focus(); }, 300);
+                                            setTimeout(() => { if (shouldFocus()) inputElement.focus(); }, 350);
+                                            setTimeout(() => { if (shouldFocus()) inputElement.focus(); }, 400);
+                                            setTimeout(() => { if (shouldFocus()) inputElement.focus(); }, 500);
                                             
                                             // Frame-based (syncs with rendering)
                                             requestAnimationFrame(() => {
-                                                inputElement.focus();
-                                                requestAnimationFrame(() => inputElement.focus());
+                                                if (shouldFocus()) inputElement.focus();
+                                                requestAnimationFrame(() => { if (shouldFocus()) inputElement.focus(); });
                                             });
                                         }
                                         
@@ -5445,24 +5463,31 @@
                                         localStorage.removeItem(draftKey);
                                         
                                         // Keep focus with aggressive attempts
+                                        // V2.11.1: CONDITIONAL - only focus if still in rapid entry mode
                                         if (inputElement) {
-                                            inputElement.focus();
-                                            setTimeout(() => inputElement.focus(), 0);
-                                            setTimeout(() => inputElement.focus(), 10);
-                                            setTimeout(() => inputElement.focus(), 20);
-                                            setTimeout(() => inputElement.focus(), 50);
-                                            setTimeout(() => inputElement.focus(), 100);
-                                            setTimeout(() => inputElement.focus(), 150);
-                                            setTimeout(() => inputElement.focus(), 200);
-                                            setTimeout(() => inputElement.focus(), 250);
-                                            setTimeout(() => inputElement.focus(), 300);
-                                            setTimeout(() => inputElement.focus(), 350);
-                                            setTimeout(() => inputElement.focus(), 400);
-                                            setTimeout(() => inputElement.focus(), 500);
+                                            // Helper: Check if should still focus
+                                            const shouldFocus = () => {
+                                                const timeSince = Date.now() - lastTaskCreationTimeRef.current;
+                                                return isCreatingTasksRef.current && timeSince < 2000;
+                                            };
+                                            
+                                            if (shouldFocus()) inputElement.focus();
+                                            setTimeout(() => { if (shouldFocus()) inputElement.focus(); }, 0);
+                                            setTimeout(() => { if (shouldFocus()) inputElement.focus(); }, 10);
+                                            setTimeout(() => { if (shouldFocus()) inputElement.focus(); }, 20);
+                                            setTimeout(() => { if (shouldFocus()) inputElement.focus(); }, 50);
+                                            setTimeout(() => { if (shouldFocus()) inputElement.focus(); }, 100);
+                                            setTimeout(() => { if (shouldFocus()) inputElement.focus(); }, 150);
+                                            setTimeout(() => { if (shouldFocus()) inputElement.focus(); }, 200);
+                                            setTimeout(() => { if (shouldFocus()) inputElement.focus(); }, 250);
+                                            setTimeout(() => { if (shouldFocus()) inputElement.focus(); }, 300);
+                                            setTimeout(() => { if (shouldFocus()) inputElement.focus(); }, 350);
+                                            setTimeout(() => { if (shouldFocus()) inputElement.focus(); }, 400);
+                                            setTimeout(() => { if (shouldFocus()) inputElement.focus(); }, 500);
                                             
                                             requestAnimationFrame(() => {
-                                                inputElement.focus();
-                                                requestAnimationFrame(() => inputElement.focus());
+                                                if (shouldFocus()) inputElement.focus();
+                                                requestAnimationFrame(() => { if (shouldFocus()) inputElement.focus(); });
                                             });
                                         }
                                         
@@ -6020,28 +6045,35 @@
                                             newTaskTextRef.current = '';
                                             
                                             // MATCH LISTS: Aggressive focus retention (14 attempts over 500ms)
+                                            // V2.11.1: CONDITIONAL - only focus if still in rapid entry mode
                                             if (inputElement) {
+                                                // Helper: Check if should still focus
+                                                const shouldFocus = () => {
+                                                    const timeSince = Date.now() - lastTaskCreationTimeRef.current;
+                                                    return isCreatingTasksRef.current && timeSince < 2000;
+                                                };
+                                                
                                                 // Immediate attempts
-                                                inputElement.focus();
-                                                setTimeout(() => inputElement.focus(), 0);
-                                                setTimeout(() => inputElement.focus(), 10);
-                                                setTimeout(() => inputElement.focus(), 20);
-                                                setTimeout(() => inputElement.focus(), 50);
+                                                if (shouldFocus()) inputElement.focus();
+                                                setTimeout(() => { if (shouldFocus()) inputElement.focus(); }, 0);
+                                                setTimeout(() => { if (shouldFocus()) inputElement.focus(); }, 10);
+                                                setTimeout(() => { if (shouldFocus()) inputElement.focus(); }, 20);
+                                                setTimeout(() => { if (shouldFocus()) inputElement.focus(); }, 50);
                                                 
                                                 // CRITICAL: Continue trying for 500ms (Supabase updates take 200-500ms)
-                                                setTimeout(() => inputElement.focus(), 100);
-                                                setTimeout(() => inputElement.focus(), 150);
-                                                setTimeout(() => inputElement.focus(), 200);
-                                                setTimeout(() => inputElement.focus(), 250);
-                                                setTimeout(() => inputElement.focus(), 300);
-                                                setTimeout(() => inputElement.focus(), 350);
-                                                setTimeout(() => inputElement.focus(), 400);
-                                                setTimeout(() => inputElement.focus(), 500);
+                                                setTimeout(() => { if (shouldFocus()) inputElement.focus(); }, 100);
+                                                setTimeout(() => { if (shouldFocus()) inputElement.focus(); }, 150);
+                                                setTimeout(() => { if (shouldFocus()) inputElement.focus(); }, 200);
+                                                setTimeout(() => { if (shouldFocus()) inputElement.focus(); }, 250);
+                                                setTimeout(() => { if (shouldFocus()) inputElement.focus(); }, 300);
+                                                setTimeout(() => { if (shouldFocus()) inputElement.focus(); }, 350);
+                                                setTimeout(() => { if (shouldFocus()) inputElement.focus(); }, 400);
+                                                setTimeout(() => { if (shouldFocus()) inputElement.focus(); }, 500);
                                                 
                                                 // Frame-based (syncs with rendering)
                                                 requestAnimationFrame(() => {
-                                                    inputElement.focus();
-                                                    requestAnimationFrame(() => inputElement.focus());
+                                                    if (shouldFocus()) inputElement.focus();
+                                                    requestAnimationFrame(() => { if (shouldFocus()) inputElement.focus(); });
                                                 });
                                             }
                                             
@@ -6076,28 +6108,35 @@
                                             newTaskTextRef.current = '';
                                             
                                             // MATCH LISTS: Aggressive focus retention
+                                            // V2.11.1: CONDITIONAL - only focus if still in rapid entry mode
                                             if (inputElement) {
+                                                // Helper: Check if should still focus
+                                                const shouldFocus = () => {
+                                                    const timeSince = Date.now() - lastTaskCreationTimeRef.current;
+                                                    return isCreatingTasksRef.current && timeSince < 2000;
+                                                };
+                                                
                                                 // Immediate attempts
-                                                inputElement.focus();
-                                                setTimeout(() => inputElement.focus(), 0);
-                                                setTimeout(() => inputElement.focus(), 10);
-                                                setTimeout(() => inputElement.focus(), 20);
-                                                setTimeout(() => inputElement.focus(), 50);
+                                                if (shouldFocus()) inputElement.focus();
+                                                setTimeout(() => { if (shouldFocus()) inputElement.focus(); }, 0);
+                                                setTimeout(() => { if (shouldFocus()) inputElement.focus(); }, 10);
+                                                setTimeout(() => { if (shouldFocus()) inputElement.focus(); }, 20);
+                                                setTimeout(() => { if (shouldFocus()) inputElement.focus(); }, 50);
                                                 
                                                 // Continue for 500ms
-                                                setTimeout(() => inputElement.focus(), 100);
-                                                setTimeout(() => inputElement.focus(), 150);
-                                                setTimeout(() => inputElement.focus(), 200);
-                                                setTimeout(() => inputElement.focus(), 250);
-                                                setTimeout(() => inputElement.focus(), 300);
-                                                setTimeout(() => inputElement.focus(), 350);
-                                                setTimeout(() => inputElement.focus(), 400);
-                                                setTimeout(() => inputElement.focus(), 500);
+                                                setTimeout(() => { if (shouldFocus()) inputElement.focus(); }, 100);
+                                                setTimeout(() => { if (shouldFocus()) inputElement.focus(); }, 150);
+                                                setTimeout(() => { if (shouldFocus()) inputElement.focus(); }, 200);
+                                                setTimeout(() => { if (shouldFocus()) inputElement.focus(); }, 250);
+                                                setTimeout(() => { if (shouldFocus()) inputElement.focus(); }, 300);
+                                                setTimeout(() => { if (shouldFocus()) inputElement.focus(); }, 350);
+                                                setTimeout(() => { if (shouldFocus()) inputElement.focus(); }, 400);
+                                                setTimeout(() => { if (shouldFocus()) inputElement.focus(); }, 500);
                                                 
                                                 // Frame-based
                                                 requestAnimationFrame(() => {
-                                                    inputElement.focus();
-                                                    requestAnimationFrame(() => inputElement.focus());
+                                                    if (shouldFocus()) inputElement.focus();
+                                                    requestAnimationFrame(() => { if (shouldFocus()) inputElement.focus(); });
                                                 });
                                             }
                                             
@@ -8681,7 +8720,7 @@
                         <div className="text-center">
                             <div className="animate-spin rounded-full h-16 w-16 border-b-4 border-indigo-600 mx-auto mb-4"></div>
                             <p className="text-gray-600">Loading Life Ninja...</p>
-                            <p className="text-gray-400 text-sm mt-2">V2.11.0</p>
+                            <p className="text-gray-400 text-sm mt-2">V2.11.1</p>
                         </div>
                     </div>
                 );
@@ -8695,7 +8734,7 @@
                             <div className="text-center mb-8">
                                 <Target className="text-indigo-600 mx-auto mb-4" size={48} />
                                 <h1 className="text-3xl font-bold text-gray-900 mb-2">Life Ninja</h1>
-                                <p className="text-gray-600">V2.11.0 • Analytics Dashboard</p>
+                                <p className="text-gray-600">V2.11.1 • Analytics (Fixed)</p>
                             </div>
                             
                             <div className="mb-6">
