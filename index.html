@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Life Ninja V2.11.5 - Drill-Down Analytics</title>
+    <title>Life Ninja V2.11.5 - Scroll Fixed</title>
     <script src="https://cdn.tailwindcss.com"></script>
     
     <script crossorigin src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
@@ -126,6 +126,59 @@
             to { opacity: 1; }
         }
     </style>
+    
+    <!-- V2.11.5: Global Scroll Preservation Manager -->
+    <script>
+    (function() {
+        // Save scroll position globally (outside React)
+        let savedScrollPos = 0;
+        let isRestoring = false;
+        
+        // Save scroll position continuously
+        window.addEventListener('scroll', function() {
+            if (!isRestoring) {
+                savedScrollPos = window.pageYOffset || document.documentElement.scrollTop;
+            }
+        }, { passive: true });
+        
+        // Restore scroll after any DOM mutation
+        const observer = new MutationObserver(function() {
+            if (savedScrollPos > 0 && !isRestoring) {
+                isRestoring = true;
+                requestAnimationFrame(function() {
+                    window.scrollTo(0, savedScrollPos);
+                    setTimeout(function() {
+                        window.scrollTo(0, savedScrollPos);
+                        isRestoring = false;
+                    }, 0);
+                });
+            }
+        });
+        
+        // Start observing when DOM is ready
+        if (document.body) {
+            observer.observe(document.body, {
+                childList: true,
+                subtree: true,
+                attributes: false
+            });
+        } else {
+            document.addEventListener('DOMContentLoaded', function() {
+                observer.observe(document.body, {
+                    childList: true,
+                    subtree: true,
+                    attributes: false
+                });
+            });
+        }
+        
+        // Export for debugging
+        window.__scrollManager = {
+            getSavedPos: function() { return savedScrollPos; },
+            restore: function() { window.scrollTo(0, savedScrollPos); }
+        };
+    })();
+    </script>
 </head>
 <body class="bg-gray-50">
     <div id="root"></div>
@@ -197,12 +250,12 @@
         };
         
         console.log('═══════════════════════════════════════════════');
-        console.log('🚀 VERSION: V2.11.5-DRILLDOWN-JAN20-2000 🚀');
-        console.log('🔧 FIX: useLayoutEffect for scroll preservation');
-        console.log('🔧 FIX: Scroll restored on tasks AND toast changes');
-        console.log('✅ Analytics cards now expandable (drill-down)');
-        console.log('✅ Points breakdown, completion rate, streak details');
-        console.log('📊 Analytics Dashboard Phase 1.5 Complete');
+        console.log('🚀 VERSION: V2.11.5-SCROLL-FIX-JAN20-1900 🚀');
+        console.log('🔧 NEW: Global scroll manager (outside React)');
+        console.log('🔧 FIX: Scroll preserved via MutationObserver');
+        console.log('✅ Points match homepage exactly');
+        console.log('✅ Cards clickable (deep analytics in Phase 2)');
+        console.log('📊 Analytics Dashboard Phase 1 Complete');
         console.log('═══════════════════════════════════════════════');
         console.log('🖥️ Device detected:', getDeviceId());
         
@@ -1031,27 +1084,6 @@
             }, [user, needsMigration, hasSyncedOnce]);
             
             // ====== PHASE 3: REAL-TIME SYNC ======
-            
-            // V2.11.5: Scroll preservation using useLayoutEffect
-            const scrollPositionRef = useRef(0);
-            
-            // Track scroll position continuously
-            useEffect(() => {
-                const handleScroll = () => {
-                    scrollPositionRef.current = window.pageYOffset;
-                };
-                window.addEventListener('scroll', handleScroll, { passive: true });
-                return () => window.removeEventListener('scroll', handleScroll);
-            }, []);
-            
-            // Restore scroll BEFORE browser paints (useLayoutEffect runs synchronously)
-            useLayoutEffect(() => {
-                const savedScroll = scrollPositionRef.current;
-                if (savedScroll > 0) {
-                    console.log('🎯 RESTORING scroll to:', savedScroll);
-                    window.scrollTo(0, savedScroll);
-                }
-            }, [tasks, toastMessage]); // Restore on tasks OR toast change
             
             // Subscribe to real-time changes for tasks
             useEffect(() => {
@@ -2031,7 +2063,7 @@
             const dailyScore = useMemo(() => {
                 let total = 0;
                 tasks.forEach(task => {
-                    // V2.11.5: Skip archived tasks
+                    // V2.11.4: Skip archived tasks
                     if (task.archived) return;
                     
                     if (isSameDay(task.scheduledDate || task.createdAt, selectedDate)) {
@@ -2051,7 +2083,7 @@
                 for (let i = 0; i < 7; i++) {
                     const day = addDays(weekStart, i);
                     tasks.forEach(task => {
-                        // V2.11.5: Skip archived tasks
+                        // V2.11.4: Skip archived tasks
                         if (task.archived) return;
                         
                         if (isSameDay(task.scheduledDate || task.createdAt, day)) {
@@ -2068,7 +2100,7 @@
             const monthlyScore = useMemo(() => {
                 let total = 0;
                 tasks.forEach(task => {
-                    // V2.11.5: Skip archived tasks
+                    // V2.11.4: Skip archived tasks
                     if (task.archived) return;
                     
                     const taskDate = new Date(task.scheduledDate || task.createdAt);
@@ -2634,7 +2666,7 @@
                 }
 
                 updateTask(taskId, updates);
-                // V2.11.5: Scroll preservation now handled by useEffect
+                // V2.11.4: Scroll preservation now handled by useEffect
             };
 
             const addSubtask = (parentId, subtaskText) => {
@@ -2840,7 +2872,7 @@
                 if (user && !isLoadingFromSupabase && updatedList) {
                     await saveListToSupabase(updatedList);
                 }
-                // V2.11.5: Scroll preservation now handled by useEffect
+                // V2.11.4: Scroll preservation now handled by useEffect
             };
             
             const handleUpdateListTaskText = async (taskId, listId, newText) => {
@@ -8570,7 +8602,7 @@
             // ====== V2.11.0: ANALYTICS VIEW ======
             const AnalyticsView = () => {
                 const [timeRange, setTimeRange] = useState('month');
-                const [expandedCard, setExpandedCard] = useState(null);  // V2.11.5: 'tasks', 'completed', 'points', or 'streak'
+                const [expandedCard, setExpandedCard] = useState(null);  // V2.11.5: Track which card is expanded
                 
                 // Helper: Check if date is in selected range
                 const isInRange = (date) => {
@@ -8606,7 +8638,7 @@
                 
                 // Calculate analytics
                 const analytics = useMemo(() => {
-                    // V2.11.5: Match homepage logic exactly
+                    // V2.11.4: Match homepage logic exactly
                     // Filter out archived tasks
                     const activeTasks = tasks.filter(t => !t.archived);
                     
@@ -8694,23 +8726,21 @@
                         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
                             {/* Total Tasks Card */}
                             <div 
-                                className="bg-gradient-to-br from-blue-50 to-blue-100 rounded-lg p-6 border border-blue-200 cursor-pointer hover:shadow-lg transition-all"
-                                onClick={() => setExpandedCard(expandedCard === 'tasks' ? null : 'tasks')}
+                                className="bg-gradient-to-br from-blue-50 to-blue-100 rounded-lg p-6 border border-blue-200 cursor-pointer hover:shadow-lg transition-shadow"
+                                onClick={() => console.log('📊 Deep dive: Total Tasks - Coming in Phase 2!')}
                             >
                                 <div className="flex items-center justify-between mb-2">
                                     <h3 className="text-sm font-semibold text-blue-700 uppercase">Total Tasks</h3>
                                     <List size={20} className="text-blue-600" />
                                 </div>
                                 <div className="text-3xl font-bold text-blue-900">{analytics.totalTasks}</div>
-                                <div className="text-xs text-blue-600 mt-1">
-                                    {expandedCard === 'tasks' ? 'Click to collapse ▲' : 'Click for breakdown ▼'}
-                                </div>
+                                <div className="text-xs text-blue-600 mt-1">All time • Click for details</div>
                             </div>
                             
                             {/* Completed Tasks Card */}
                             <div 
-                                className="bg-gradient-to-br from-green-50 to-green-100 rounded-lg p-6 border border-green-200 cursor-pointer hover:shadow-lg transition-all"
-                                onClick={() => setExpandedCard(expandedCard === 'completed' ? null : 'completed')}
+                                className="bg-gradient-to-br from-green-50 to-green-100 rounded-lg p-6 border border-green-200 cursor-pointer hover:shadow-lg transition-shadow"
+                                onClick={() => console.log('📊 Deep dive: Completed Tasks - Coming in Phase 2!')}
                             >
                                 <div className="flex items-center justify-between mb-2">
                                     <h3 className="text-sm font-semibold text-green-700 uppercase">Completed</h3>
@@ -8718,19 +8748,17 @@
                                 </div>
                                 <div className="text-3xl font-bold text-green-900">{analytics.completedTasks}</div>
                                 <div className="text-xs text-green-600 mt-1">
-                                    {expandedCard === 'completed' 
-                                        ? 'Click to collapse ▲' 
-                                        : analytics.totalTasks > 0 
-                                            ? `${Math.round((analytics.completedTasks / analytics.totalTasks) * 100)}% • Click for details ▼`
-                                            : 'No tasks yet'
+                                    {analytics.totalTasks > 0 
+                                        ? `${Math.round((analytics.completedTasks / analytics.totalTasks) * 100)}% • Click for details`
+                                        : 'No tasks yet'
                                     }
                                 </div>
                             </div>
                             
                             {/* Total Points Card */}
                             <div 
-                                className="bg-gradient-to-br from-purple-50 to-purple-100 rounded-lg p-6 border border-purple-200 cursor-pointer hover:shadow-lg transition-all"
-                                onClick={() => setExpandedCard(expandedCard === 'points' ? null : 'points')}
+                                className="bg-gradient-to-br from-purple-50 to-purple-100 rounded-lg p-6 border border-purple-200 cursor-pointer hover:shadow-lg transition-shadow"
+                                onClick={() => console.log('📊 Deep dive: Points Breakdown - Coming in Phase 2!')}
                             >
                                 <div className="flex items-center justify-between mb-2">
                                     <h3 className="text-sm font-semibold text-purple-700 uppercase">Total Points</h3>
@@ -8738,14 +8766,14 @@
                                 </div>
                                 <div className="text-3xl font-bold text-purple-900">{analytics.totalPoints}</div>
                                 <div className="text-xs text-purple-600 mt-1">
-                                    {expandedCard === 'points' ? 'Click to collapse ▲' : 'Click for breakdown ▼'}
+                                    Status + bonuses + priority • Click for details
                                 </div>
                             </div>
                             
                             {/* Streak Card */}
                             <div 
-                                className="bg-gradient-to-br from-orange-50 to-orange-100 rounded-lg p-6 border border-orange-200 cursor-pointer hover:shadow-lg transition-all"
-                                onClick={() => setExpandedCard(expandedCard === 'streak' ? null : 'streak')}
+                                className="bg-gradient-to-br from-orange-50 to-orange-100 rounded-lg p-6 border border-orange-200 cursor-pointer hover:shadow-lg transition-shadow"
+                                onClick={() => console.log('📊 Deep dive: Streak History - Coming in Phase 2!')}
                             >
                                 <div className="flex items-center justify-between mb-2">
                                     <h3 className="text-sm font-semibold text-orange-700 uppercase">Streak</h3>
@@ -8753,129 +8781,10 @@
                                 </div>
                                 <div className="text-3xl font-bold text-orange-900">{analytics.streak}</div>
                                 <div className="text-xs text-orange-600 mt-1">
-                                    {expandedCard === 'streak' ? 'Click to collapse ▲' : `${analytics.streak === 1 ? 'day' : 'days'} • Click for details ▼`}
+                                    {analytics.streak === 1 ? 'day' : 'days'} consecutive • Click for details
                                 </div>
                             </div>
                         </div>
-                        
-                        {/* Expanded Card Details */}
-                        {expandedCard && (
-                            <div className="bg-white rounded-lg shadow-lg p-6 mb-8 border-2 border-indigo-200">
-                                {expandedCard === 'tasks' && (
-                                    <div>
-                                        <h3 className="text-lg font-semibold text-gray-900 mb-4">📋 Tasks Breakdown</h3>
-                                        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                                            <div className="bg-blue-50 p-4 rounded-lg">
-                                                <div className="text-2xl font-bold text-blue-900">
-                                                    {tasks.filter(t => !t.archived && t.status === 'not-started').length}
-                                                </div>
-                                                <div className="text-sm text-blue-700">Not Started</div>
-                                            </div>
-                                            <div className="bg-yellow-50 p-4 rounded-lg">
-                                                <div className="text-2xl font-bold text-yellow-900">
-                                                    {tasks.filter(t => !t.archived && t.status === 'in-progress').length}
-                                                </div>
-                                                <div className="text-sm text-yellow-700">In Progress</div>
-                                            </div>
-                                            <div className="bg-green-50 p-4 rounded-lg">
-                                                <div className="text-2xl font-bold text-green-900">
-                                                    {tasks.filter(t => !t.archived && t.status === 'completed').length}
-                                                </div>
-                                                <div className="text-sm text-green-700">Completed</div>
-                                            </div>
-                                        </div>
-                                    </div>
-                                )}
-                                
-                                {expandedCard === 'completed' && (
-                                    <div>
-                                        <h3 className="text-lg font-semibold text-gray-900 mb-4">✅ Completion Details</h3>
-                                        <div className="space-y-4">
-                                            <div className="bg-green-50 p-4 rounded-lg">
-                                                <div className="text-sm text-gray-600 mb-1">Completion Rate</div>
-                                                <div className="flex items-center gap-2">
-                                                    <div className="flex-1 bg-gray-200 rounded-full h-4">
-                                                        <div 
-                                                            className="bg-green-500 h-4 rounded-full transition-all"
-                                                            style={{width: `${analytics.totalTasks > 0 ? (analytics.completedTasks / analytics.totalTasks) * 100 : 0}%`}}
-                                                        ></div>
-                                                    </div>
-                                                    <span className="text-lg font-bold text-green-900">
-                                                        {analytics.totalTasks > 0 ? Math.round((analytics.completedTasks / analytics.totalTasks) * 100) : 0}%
-                                                    </span>
-                                                </div>
-                                            </div>
-                                            <div className="grid grid-cols-2 gap-4">
-                                                <div className="bg-blue-50 p-4 rounded-lg">
-                                                    <div className="text-2xl font-bold text-blue-900">{analytics.totalTasks - analytics.completedTasks}</div>
-                                                    <div className="text-sm text-blue-700">Remaining Tasks</div>
-                                                </div>
-                                                <div className="bg-purple-50 p-4 rounded-lg">
-                                                    <div className="text-2xl font-bold text-purple-900">
-                                                        {tasks.filter(t => t.archived).length}
-                                                    </div>
-                                                    <div className="text-sm text-purple-700">Archived Tasks</div>
-                                                </div>
-                                            </div>
-                                        </div>
-                                    </div>
-                                )}
-                                
-                                {expandedCard === 'points' && (
-                                    <div>
-                                        <h3 className="text-lg font-semibold text-gray-900 mb-4">🎯 Points Breakdown</h3>
-                                        <div className="space-y-4">
-                                            {(() => {
-                                                const activeTasks = tasks.filter(t => !t.archived);
-                                                const completedPoints = activeTasks.filter(t => t.status === 'completed').reduce((sum, t) => sum + calculateTaskScore(t), 0);
-                                                const inProgressPoints = activeTasks.filter(t => t.status === 'in-progress').reduce((sum, t) => sum + calculateTaskScore(t), 0);
-                                                const notStartedPoints = activeTasks.filter(t => t.status === 'not-started').reduce((sum, t) => sum + calculateTaskScore(t), 0);
-                                                
-                                                return (
-                                                    <>
-                                                        <div className="grid grid-cols-3 gap-4">
-                                                            <div className="bg-green-50 p-4 rounded-lg">
-                                                                <div className="text-2xl font-bold text-green-900">{completedPoints}</div>
-                                                                <div className="text-sm text-green-700">From Completed</div>
-                                                            </div>
-                                                            <div className="bg-yellow-50 p-4 rounded-lg">
-                                                                <div className="text-2xl font-bold text-yellow-900">{inProgressPoints}</div>
-                                                                <div className="text-sm text-yellow-700">From In-Progress</div>
-                                                            </div>
-                                                            <div className="bg-gray-50 p-4 rounded-lg">
-                                                                <div className="text-2xl font-bold text-gray-900">{notStartedPoints}</div>
-                                                                <div className="text-sm text-gray-700">From Not Started</div>
-                                                            </div>
-                                                        </div>
-                                                        <div className="bg-purple-50 p-4 rounded-lg">
-                                                            <div className="text-sm text-gray-600 mb-2">Average Points per Task</div>
-                                                            <div className="text-2xl font-bold text-purple-900">
-                                                                {activeTasks.length > 0 ? Math.round(analytics.totalPoints / activeTasks.length) : 0}
-                                                            </div>
-                                                        </div>
-                                                    </>
-                                                );
-                                            })()}
-                                        </div>
-                                    </div>
-                                )}
-                                
-                                {expandedCard === 'streak' && (
-                                    <div>
-                                        <h3 className="text-lg font-semibold text-gray-900 mb-4">🔥 Streak Information</h3>
-                                        <div className="bg-orange-50 p-6 rounded-lg text-center">
-                                            <div className="text-6xl font-bold text-orange-900 mb-2">{analytics.streak}</div>
-                                            <div className="text-lg text-orange-700 mb-4">
-                                                {analytics.streak === 1 ? 'Day' : 'Days'} of Consecutive Completions
-                                            </div>
-                                            <div className="text-sm text-gray-600 italic">
-                                                Keep completing tasks daily to maintain your streak! 🚀
-                                            </div>
-                                        </div>
-                                    </div>
-                                )}
-                            </div>
-                        )}
                         
                         {/* Points Calculation Breakdown */}
                         <div className="bg-white rounded-lg shadow p-6 mb-8">
@@ -8945,7 +8854,7 @@
                             <div className="text-center mb-8">
                                 <Target className="text-indigo-600 mx-auto mb-4" size={48} />
                                 <h1 className="text-3xl font-bold text-gray-900 mb-2">Life Ninja</h1>
-                                <p className="text-gray-600">V2.11.5 • Drill-Down Analytics</p>
+                                <p className="text-gray-600">V2.11.5 • Scroll Fixed</p>
                             </div>
                             
                             <div className="mb-6">
