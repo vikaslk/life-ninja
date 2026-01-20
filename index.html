@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Life Ninja V2.11.3 - Analytics Phase 1 Complete</title>
+    <title>Life Ninja V2.11.4 - Analytics Complete</title>
     <script src="https://cdn.tailwindcss.com"></script>
     
     <script crossorigin src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
@@ -197,14 +197,14 @@
         };
         
         console.log('═══════════════════════════════════════════════');
-        console.log('🚀 VERSION: V2.11.3-ANALYTICS-FINAL-JAN19-2030 🚀');
-        console.log('🔧 FIX #1: Analytics shows ALL tasks (matches home page)');
-        console.log('🔧 FIX #2: Scroll preserved in real-time UPDATE handler');
-        console.log('✅ Overview cards: Total, Completed, Points, Streak');
-        console.log('✅ Numbers now match home page exactly');
-        console.log('✅ No scroll jump on checkbox click (finally!)');
-        console.log('✅ Typing still perfect');
-        console.log('📊 Analytics Dashboard Phase 1 Complete');
+        console.log('🚀 VERSION: V2.11.4-ANALYTICS-COMPLETE-JAN19-2130 🚀');
+        console.log('🔧 FIX #1: Points now match homepage exactly');
+        console.log('🔧 FIX #2: Archived tasks excluded from scores');
+        console.log('🔧 FIX #3: New scroll preservation with useEffect');
+        console.log('📊 Points breakdown displayed in Analytics');
+        console.log('✅ Clear explanation of scoring system');
+        console.log('✅ Homepage: Today, Week, Month scores (non-archived)');
+        console.log('✅ Analytics: Total points using same logic');
         console.log('═══════════════════════════════════════════════');
         console.log('🖥️ Device detected:', getDeviceId());
         
@@ -1034,6 +1034,32 @@
             
             // ====== PHASE 3: REAL-TIME SYNC ======
             
+            // V2.11.4: Scroll preservation for task updates
+            const lastScrollPosRef = useRef({ x: 0, y: 0 });
+            const tasksLengthRef = useRef(tasks.length);
+            
+            useEffect(() => {
+                // Save scroll position whenever it changes
+                const saveScroll = () => {
+                    lastScrollPosRef.current = { x: window.scrollX, y: window.scrollY };
+                };
+                window.addEventListener('scroll', saveScroll);
+                return () => window.removeEventListener('scroll', saveScroll);
+            }, []);
+            
+            useEffect(() => {
+                // When tasks update (but not added/removed), restore scroll
+                if (tasks.length === tasksLengthRef.current) {
+                    // Same number of tasks = status update, not add/remove
+                    const { x, y } = lastScrollPosRef.current;
+                    if (y > 0) {  // Only restore if we had scrolled
+                        console.log('📌 Restoring scroll to:', y);
+                        window.scrollTo(x, y);
+                    }
+                }
+                tasksLengthRef.current = tasks.length;
+            }, [tasks]);
+            
             // Subscribe to real-time changes for tasks
             useEffect(() => {
                 if (!user) return;
@@ -1181,10 +1207,6 @@
                                 // V2.11.1: Allow updates when user is just clicking around UI
                                 // Even if input happens to have focus, allow updates unless actively typing
                                 
-                                // V2.11.3: Save scroll position before update
-                                const scrollY = window.scrollY;
-                                const scrollX = window.scrollX;
-                                
                                 // SURGICAL FIX #2: Merge updates instead of replacing
                                 // This preserves any local changes that haven't synced yet
                                 setTasks(prev => {
@@ -1196,11 +1218,6 @@
                                     newTasks[index] = { ...newTasks[index], ...updatedTask };
                                     
                                     return newTasks;
-                                });
-                                
-                                // V2.11.3: Restore scroll position after re-render
-                                requestAnimationFrame(() => {
-                                    window.scrollTo(scrollX, scrollY);
                                 });
                             }
                             
@@ -2021,6 +2038,9 @@
             const dailyScore = useMemo(() => {
                 let total = 0;
                 tasks.forEach(task => {
+                    // V2.11.4: Skip archived tasks
+                    if (task.archived) return;
+                    
                     if (isSameDay(task.scheduledDate || task.createdAt, selectedDate)) {
                         total += calculateTaskScore(task);
                         if (task.subtasks) {
@@ -2038,6 +2058,9 @@
                 for (let i = 0; i < 7; i++) {
                     const day = addDays(weekStart, i);
                     tasks.forEach(task => {
+                        // V2.11.4: Skip archived tasks
+                        if (task.archived) return;
+                        
                         if (isSameDay(task.scheduledDate || task.createdAt, day)) {
                             total += calculateTaskScore(task);
                             if (task.subtasks) {
@@ -2052,6 +2075,9 @@
             const monthlyScore = useMemo(() => {
                 let total = 0;
                 tasks.forEach(task => {
+                    // V2.11.4: Skip archived tasks
+                    if (task.archived) return;
+                    
                     const taskDate = new Date(task.scheduledDate || task.createdAt);
                     if (taskDate.getMonth() === currentMonth && taskDate.getFullYear() === currentYear) {
                         total += calculateTaskScore(task);
@@ -2581,10 +2607,6 @@
             };
 
             const toggleTaskStatus = (taskId) => {
-                // V2.11.2: Save scroll position before status change
-                const scrollY = window.scrollY;
-                const scrollX = window.scrollX;
-                
                 // V2.11.1: Clear rapid entry mode when user clicks checkbox
                 // This prevents focus from jumping back to input
                 isCreatingTasksRef.current = false;
@@ -2619,15 +2641,7 @@
                 }
 
                 updateTask(taskId, updates);
-                
-                // V2.11.2: Restore scroll position after state update
-                // Use multiple methods to ensure it works
-                requestAnimationFrame(() => {
-                    window.scrollTo(scrollX, scrollY);
-                    requestAnimationFrame(() => {
-                        window.scrollTo(scrollX, scrollY);
-                    });
-                });
+                // V2.11.4: Scroll preservation now handled by useEffect
             };
 
             const addSubtask = (parentId, subtaskText) => {
@@ -2794,10 +2808,6 @@
             };
 
             const handleToggleListTaskStatus = async (taskId, listId) => {
-                // V2.11.2: Save scroll position before status change
-                const scrollY = window.scrollY;
-                const scrollX = window.scrollX;
-                
                 // V2.11.2: Clear rapid entry mode
                 isCreatingTasksRef.current = false;
                 
@@ -2837,14 +2847,7 @@
                 if (user && !isLoadingFromSupabase && updatedList) {
                     await saveListToSupabase(updatedList);
                 }
-                
-                // V2.11.2: Restore scroll position
-                requestAnimationFrame(() => {
-                    window.scrollTo(scrollX, scrollY);
-                    requestAnimationFrame(() => {
-                        window.scrollTo(scrollX, scrollY);
-                    });
-                });
+                // V2.11.4: Scroll preservation now handled by useEffect
             };
             
             const handleUpdateListTaskText = async (taskId, listId, newText) => {
@@ -8609,19 +8612,28 @@
                 
                 // Calculate analytics
                 const analytics = useMemo(() => {
-                    // V2.11.3: Overview cards show ALL tasks (match home page)
-                    // Time filter will be used for charts in Phase 2
+                    // V2.11.4: Match homepage logic exactly
+                    // Filter out archived tasks
+                    const activeTasks = tasks.filter(t => !t.archived);
                     
-                    // Total Tasks: ALL tasks
-                    const totalTasks = tasks.length;
+                    // Total Tasks: ALL active (non-archived) tasks
+                    const totalTasks = activeTasks.length;
                     
-                    // Completed Tasks: ALL completed tasks
-                    const completedTasks = tasks.filter(t => t.status === 'completed').length;
+                    // Completed Tasks: ALL completed active tasks
+                    const completedTasks = activeTasks.filter(t => t.status === 'completed').length;
                     
-                    // Total points: from ALL tasks (sum all priority ratings)
-                    const totalPoints = tasks.reduce((sum, task) => {
-                        const priority = task.priority_rating !== undefined ? task.priority_rating : 5;
-                        return sum + priority;
+                    // Total Points: Use SAME logic as homepage (calculateTaskScore)
+                    // This includes:
+                    // - Base points (completed=2-5, in-progress=1, not-started=0)
+                    // - Early completion bonuses (up to 2x multiplier)
+                    // - Priority rating (0-10)
+                    const totalPoints = activeTasks.reduce((sum, task) => {
+                        let score = calculateTaskScore(task);
+                        // Include subtasks
+                        if (task.subtasks) {
+                            task.subtasks.forEach(st => score += calculateTaskScore(st));
+                        }
+                        return sum + score;
                     }, 0);
                     
                     // Calculate streak (consecutive days with completed tasks)
@@ -8718,7 +8730,9 @@
                                     <Target size={20} className="text-purple-600" />
                                 </div>
                                 <div className="text-3xl font-bold text-purple-900">{analytics.totalPoints}</div>
-                                <div className="text-xs text-purple-600 mt-1">Based on priority ratings</div>
+                                <div className="text-xs text-purple-600 mt-1">
+                                    Status + bonuses + priority (0-10)
+                                </div>
                             </div>
                             
                             {/* Streak Card */}
@@ -8730,6 +8744,37 @@
                                 <div className="text-3xl font-bold text-orange-900">{analytics.streak}</div>
                                 <div className="text-xs text-orange-600 mt-1">
                                     {analytics.streak === 1 ? 'day' : 'days'} consecutive
+                                </div>
+                            </div>
+                        </div>
+                        
+                        {/* Points Calculation Breakdown */}
+                        <div className="bg-white rounded-lg shadow p-6 mb-8">
+                            <h3 className="text-lg font-semibold text-gray-900 mb-4">📊 How Points Are Calculated</h3>
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-sm">
+                                <div className="space-y-2">
+                                    <div className="font-semibold text-gray-700">Base Points (by status & type):</div>
+                                    <div className="pl-4 space-y-1 text-gray-600">
+                                        <div>✅ Completed (Growth): <span className="font-semibold">5 pts</span></div>
+                                        <div>✅ Completed (Consistency): <span className="font-semibold">3 pts</span></div>
+                                        <div>✅ Completed (Old/Other): <span className="font-semibold">2 pts</span></div>
+                                        <div>🔄 In Progress: <span className="font-semibold">1 pt</span></div>
+                                        <div>⭕ Not Started: <span className="font-semibold">0 pts</span></div>
+                                    </div>
+                                </div>
+                                <div className="space-y-2">
+                                    <div className="font-semibold text-gray-700">Bonuses & Additions:</div>
+                                    <div className="pl-4 space-y-1 text-gray-600">
+                                        <div>🎯 Priority Rating: <span className="font-semibold">+0-10 pts</span></div>
+                                        <div>⏰ On Time: <span className="font-semibold">×1.5 (50% bonus)</span></div>
+                                        <div>📅 1 Day Early: <span className="font-semibold">×1.75 (75% bonus)</span></div>
+                                        <div>🚀 2+ Days Early: <span className="font-semibold">×2.0 (100% bonus)</span></div>
+                                    </div>
+                                </div>
+                            </div>
+                            <div className="mt-4 pt-4 border-t border-gray-200">
+                                <div className="text-xs text-gray-500 italic">
+                                    ℹ️ Archived tasks are excluded • Subtasks contribute to total • Homepage shows Today/Week/Month scores
                                 </div>
                             </div>
                         </div>
@@ -8757,7 +8802,7 @@
                         <div className="text-center">
                             <div className="animate-spin rounded-full h-16 w-16 border-b-4 border-indigo-600 mx-auto mb-4"></div>
                             <p className="text-gray-600">Loading Life Ninja...</p>
-                            <p className="text-gray-400 text-sm mt-2">V2.11.3</p>
+                            <p className="text-gray-400 text-sm mt-2">V2.11.4</p>
                         </div>
                     </div>
                 );
@@ -8771,7 +8816,7 @@
                             <div className="text-center mb-8">
                                 <Target className="text-indigo-600 mx-auto mb-4" size={48} />
                                 <h1 className="text-3xl font-bold text-gray-900 mb-2">Life Ninja</h1>
-                                <p className="text-gray-600">V2.11.3 • Analytics Complete</p>
+                                <p className="text-gray-600">V2.11.4 • Analytics Complete</p>
                             </div>
                             
                             <div className="mb-6">
