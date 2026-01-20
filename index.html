@@ -197,14 +197,12 @@
         };
         
         console.log('═══════════════════════════════════════════════');
-        console.log('🚀 VERSION: V2.11.4-ANALYTICS-COMPLETE-JAN19-2130 🚀');
-        console.log('🔧 FIX #1: Points now match homepage exactly');
-        console.log('🔧 FIX #2: Archived tasks excluded from scores');
-        console.log('🔧 FIX #3: New scroll preservation with useEffect');
+        console.log('🚀 VERSION: V2.11.4.1-HOTFIX-JAN19-2145 🚀');
+        console.log('🔧 HOTFIX: Fixed undefined tasks.length error');
+        console.log('✅ Points now match homepage exactly');
+        console.log('✅ Archived tasks excluded from scores');
+        console.log('✅ Scroll preservation with useEffect');
         console.log('📊 Points breakdown displayed in Analytics');
-        console.log('✅ Clear explanation of scoring system');
-        console.log('✅ Homepage: Today, Week, Month scores (non-archived)');
-        console.log('✅ Analytics: Total points using same logic');
         console.log('═══════════════════════════════════════════════');
         console.log('🖥️ Device detected:', getDeviceId());
         
@@ -1036,7 +1034,7 @@
             
             // V2.11.4: Scroll preservation for task updates
             const lastScrollPosRef = useRef({ x: 0, y: 0 });
-            const tasksLengthRef = useRef(tasks.length);
+            const tasksLengthRef = useRef(0);  // Will be set on first render
             
             useEffect(() => {
                 // Save scroll position whenever it changes
@@ -1049,6 +1047,8 @@
             
             useEffect(() => {
                 // When tasks update (but not added/removed), restore scroll
+                if (!tasks) return;  // Safety check
+                
                 if (tasks.length === tasksLengthRef.current) {
                     // Same number of tasks = status update, not add/remove
                     const { x, y } = lastScrollPosRef.current;
