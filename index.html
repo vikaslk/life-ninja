@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Life Ninja V2.12.0 - Analytics Phase 2</title>
+    <title>Life Ninja V2.12.1 - Critical Fixes</title>
     <script src="https://cdn.tailwindcss.com"></script>
     
     <script crossorigin src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
@@ -254,12 +254,13 @@
         };
         
         console.log('═══════════════════════════════════════════════');
-        console.log('🚀 VERSION: V2.12.0-ANALYTICS-PHASE-2-JAN20-2100 🚀');
-        console.log('📊 NEW: Interactive charts & visualizations');
-        console.log('⏰ NEW: On-Time Performance Heat Bar');
-        console.log('🔧 FIX: Time range filter now working');
-        console.log('📈 Charts: Type breakdown, Priority, Status, Completion');
-        console.log('✅ All V2.11.6 features working');
+        console.log('🚀 VERSION: V2.12.1-CRITICAL-FIXES-JAN21-0800 🚀');
+        console.log('🔧 FIX #1: Completion zone filtering complete');
+        console.log('🔧 FIX #2: Points unified (landing = analytics)');
+        console.log('🔧 FIX #3: Trophy only if ALL subtasks complete');
+        console.log('🔧 FIX #4: Custom statuses + icons restored');
+        console.log('✅ Subtasks included in all point calculations');
+        console.log('✅ All V2.12.0 features working');
         console.log('═══════════════════════════════════════════════');
         console.log('🖥️ Device detected:', getDeviceId());
         
@@ -817,6 +818,7 @@
                         tags: task.tags || [],
                         notes: task.notes || null,
                         archived: task.archived || false,
+                        in_completion_zone: task.inCompletionZone || false, // V2.12.1: Completion zone field
                         is_old_task: task.isOldTask || false,
                         subtasks: task.subtasks || []
                     };
@@ -953,6 +955,7 @@
                         tags: t.tags || [],
                         notes: t.notes,
                         archived: t.archived,
+                        inCompletionZone: t.in_completion_zone || false, // V2.12.1: Load completion zone status
                         isOldTask: t.is_old_task,
                         manualOrder: t.manual_order,
                         subtasks: t.subtasks || [],
@@ -1164,6 +1167,7 @@
                                     tags: payload.new.tags || [],
                                     notes: payload.new.notes,
                                     archived: payload.new.archived,
+                                    inCompletionZone: payload.new.in_completion_zone || false, // V2.12.1
                                     isOldTask: payload.new.is_old_task,
                                     manualOrder: payload.new.manual_order,
                                     subtasks: payload.new.subtasks || []
@@ -1210,6 +1214,7 @@
                                     tags: payload.new.tags || [],
                                     notes: payload.new.notes,
                                     archived: payload.new.archived,
+                                    inCompletionZone: payload.new.in_completion_zone || false, // V2.12.1
                                     isOldTask: payload.new.is_old_task,
                                     subtasks: payload.new.subtasks || []
                                     // V2.5.12-MANUAL-SYNC: manualOrder NOT included
@@ -3967,6 +3972,102 @@
             };
 
             // ====== RENDER HELPERS ======
+            // ====== V2.12.1: STATUS SYSTEM WITH ICONS (From V2.6.3) ======
+            
+            // Comprehensive status icon library
+            const STATUS_ICON_LIBRARY = {
+                // Default statuses
+                'not-started': { icon: '○', color: 'text-gray-400', label: 'Not Started' },
+                'in-progress': { icon: '▶', color: 'text-yellow-600', label: 'In Progress' },
+                'completed': { icon: '✓', color: 'text-green-600', label: 'Completed' },
+                
+                // Common workflow statuses
+                'to-do': { icon: '▢', color: 'text-blue-500', label: 'To Do' },
+                'done': { icon: '✓', color: 'text-green-600', label: 'Done' },
+                'in-review': { icon: '👀', color: 'text-blue-600', label: 'In Review' },
+                'reviewing': { icon: '👀', color: 'text-blue-600', label: 'Reviewing' },
+                
+                // Discussion/Communication statuses
+                'awaiting-discussion': { icon: '💬', color: 'text-purple-600', label: 'Awaiting Discussion' },
+                'awaiting-approval': { icon: '✋', color: 'text-orange-500', label: 'Awaiting Approval' },
+                'awaiting-input': { icon: '📨', color: 'text-indigo-500', label: 'Awaiting Input' },
+                
+                // Pause/Delay statuses
+                'delayed': { icon: '⏰', color: 'text-red-600', label: 'Delayed' },
+                'delayed-parked': { icon: '⸕', color: 'text-orange-600', label: 'Delayed/Parked' },
+                'parked': { icon: '🅿', color: 'text-gray-600', label: 'Parked' },
+                'on-hold': { icon: '⸕', color: 'text-yellow-700', label: 'On Hold' },
+                'paused': { icon: '⸕', color: 'text-yellow-600', label: 'Paused' },
+                
+                // Priority/Speed statuses
+                'set-aside': { icon: '📌', color: 'text-indigo-600', label: 'Set Aside' },
+                'go-slow': { icon: '🐢', color: 'text-blue-400', label: 'Go Slow' },
+                'urgent': { icon: '🔥', color: 'text-red-600', label: 'Urgent' },
+                'fast-track': { icon: '⚡', color: 'text-yellow-500', label: 'Fast Track' },
+                
+                // Blocking/Issue statuses
+                'blocked': { icon: '🚫', color: 'text-red-700', label: 'Blocked' },
+                'disabled': { icon: '⊘', color: 'text-gray-500', label: 'Disabled' },
+                'do-not-execute': { icon: '🛑', color: 'text-red-800', label: 'Do Not Execute' },
+                'needs-info': { icon: '❓', color: 'text-blue-500', label: 'Needs Info' },
+                
+                // Completion variants
+                'cancelled': { icon: '✗', color: 'text-gray-500', label: 'Cancelled' },
+                'archived': { icon: '📦', color: 'text-gray-400', label: 'Archived' },
+                'verified': { icon: '✓✓', color: 'text-green-700', label: 'Verified' },
+                
+                // Fallback for unknown statuses
+                'default': { icon: '●', color: 'text-gray-500', label: 'Status' }
+            };
+            
+            // Get status icon/color/label for any status
+            const getStatusIcon = (status) => {
+                if (!status) return STATUS_ICON_LIBRARY['not-started'];
+                
+                // Direct match
+                if (STATUS_ICON_LIBRARY[status]) {
+                    return STATUS_ICON_LIBRARY[status];
+                }
+                
+                // Fuzzy match: convert status to readable label
+                const label = status
+                    .split('-')
+                    .map(word => word.charAt(0).toUpperCase() + word.slice(1))
+                    .join(' ');
+                
+                // Return with generated label
+                return {
+                    icon: STATUS_ICON_LIBRARY['default'].icon,
+                    color: STATUS_ICON_LIBRARY['default'].color,
+                    label: label
+                };
+            };
+            
+            // Get statuses for a task based on its project
+            const getTaskStatuses = (task) => {
+                if (!task.project) {
+                    // No project = use default statuses
+                    return ['not-started', 'in-progress', 'completed'];
+                }
+                
+                const project = projects.find(p => p.name === task.project);
+                return project?.statuses || ['not-started', 'in-progress', 'completed'];
+            };
+            
+            // Get next status in circular cycle
+            const getNextStatus = (task) => {
+                const statuses = getTaskStatuses(task);
+                const currentIndex = statuses.indexOf(task.status);
+                
+                if (currentIndex === -1) {
+                    // Current status not in list, return first status
+                    return statuses[0];
+                }
+                
+                // Cycle to next status
+                return statuses[(currentIndex + 1) % statuses.length];
+            };
+
             const getIcon = (status) => {
                 if (status === 'completed') return <CheckCircle className="text-green-600" size={20} />;
                 if (status === 'in-progress') return <Play className="text-blue-600" size={20} />;
@@ -4158,19 +4259,26 @@
                                     {getIcon(task.status)}
                                 </div>
                                 
-                                {/* V2.11.6: Trophy icon for completed tasks (Completion Zone) */}
-                                {task.status === 'completed' && !task.inCompletionZone && (
-                                    <div
-                                        onClick={(e) => {
-                                            e.stopPropagation();
-                                            toggleCompletionZone(task.id);
-                                        }}
-                                        className="cursor-pointer mt-1 hover:scale-110 transition-transform"
-                                        title="Move to Completion Zone (keeps points, hides from views)"
-                                    >
-                                        <Trophy size={18} className="text-yellow-600 hover:text-yellow-700" />
-                                    </div>
-                                )}
+                                {/* V2.12.1: Trophy icon - only if completed AND all subtasks complete */}
+                                {(() => {
+                                    const isCompleted = task.status === 'completed';
+                                    const notInZone = !task.inCompletionZone;
+                                    const allSubtasksComplete = !task.subtasks || task.subtasks.length === 0 || 
+                                        task.subtasks.every(st => st.status === 'completed');
+                                    
+                                    return isCompleted && notInZone && allSubtasksComplete && (
+                                        <div
+                                            onClick={(e) => {
+                                                e.stopPropagation();
+                                                toggleCompletionZone(task.id);
+                                            }}
+                                            className="cursor-pointer mt-1 hover:scale-110 transition-transform"
+                                            title="Move to Completion Zone (keeps points, hides from views)"
+                                        >
+                                            <Trophy size={18} className="text-yellow-600 hover:text-yellow-700" />
+                                        </div>
+                                    );
+                                })()}
                                 
                                 <div 
                                     className="flex-1" 
