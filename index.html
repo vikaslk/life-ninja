@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Life Ninja V2.12.1 - Critical Fixes</title>
+    <title>Life Ninja V2.12.1.2 - Focus Fix V2</title>
     <script src="https://cdn.tailwindcss.com"></script>
     
     <script crossorigin src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
@@ -254,13 +254,11 @@
         };
         
         console.log('═══════════════════════════════════════════════');
-        console.log('🚀 VERSION: V2.12.1-CRITICAL-FIXES-JAN21-0800 🚀');
-        console.log('🔧 FIX #1: Completion zone filtering complete');
-        console.log('🔧 FIX #2: Points unified (landing = analytics)');
-        console.log('🔧 FIX #3: Trophy only if ALL subtasks complete');
-        console.log('🔧 FIX #4: Custom statuses + icons restored');
-        console.log('✅ Subtasks included in all point calculations');
-        console.log('✅ All V2.12.0 features working');
+        console.log('🚀 VERSION: V2.12.1.2-FOCUS-FIX-V2-JAN22-0900 🚀');
+        console.log('🔥 HOTFIX: Quick Edit modal focus RE-FIXED!');
+        console.log('🔍 DEBUG: Analytics time filter logging added');
+        console.log('✅ Using REF instead of DOM for modal detection');
+        console.log('✅ All V2.12.1.1 features working');
         console.log('═══════════════════════════════════════════════');
         console.log('🖥️ Device detected:', getDeviceId());
         
@@ -1998,6 +1996,9 @@
             const [quickEditTask, setQuickEditTask] = useState(null);
             const [showQuickEdit, setShowQuickEdit] = useState(false);
             
+            // V2.12.1.2: Track if user is in modal/editing to prevent focus stealing
+            const isInModalRef = useRef(false);
+            
             // V1.3: Manual task reordering
             // FIX #7: Persist manual order mode to localStorage
             const [isManualOrder, setIsManualOrder] = useState(() => {
@@ -2067,6 +2068,11 @@
             const [bulkImportText, setBulkImportText] = useState('');
             const [importedItems, setImportedItems] = useState([]);
             const [currentClassifyIndex, setCurrentClassifyIndex] = useState(0);
+            
+            // V2.12.1.2: Track when user is in modal to prevent focus stealing
+            useEffect(() => {
+                isInModalRef.current = showQuickEdit || showListsModal || editingTask !== null;
+            }, [showQuickEdit, showListsModal, editingTask]);
 
             // ====== COMPUTED VALUES ======
             const dailyScore = useMemo(() => {
@@ -2126,8 +2132,12 @@
             // Filtered and sorted tasks
             const filteredTasks = useMemo(() => {
                 let filtered = tasks.filter(task => {
-                    // V2.11.6: Hide completion zone tasks from main views
-                    if (task.inCompletionZone) return false;
+                    // V2.12.1.1: More robust completion zone check
+                    // Handle undefined, null, and true all as "should hide"
+                    if (task.inCompletionZone === true) {
+                        console.log('🏆 Filtering out completion zone task:', task.text);
+                        return false;
+                    }
                     
                     if (!showArchived && task.archived) return false;
                     if (showArchived && !task.archived) return false;
@@ -2652,8 +2662,8 @@
                 const task = tasks.find(t => t.id === taskId);
                 if (!task) return;
 
-                let newStatus = task.status === 'not-started' ? 'in-progress' : 
-                               task.status === 'in-progress' ? 'completed' : 'not-started';
+                // V2.12.1.1: Use getNextStatus to support custom project statuses!
+                let newStatus = getNextStatus(task);
                 const now = new Date().toISOString();
                 
                 const updates = {
@@ -4160,8 +4170,12 @@
                                         }
                                     }}
                                     className="cursor-pointer mt-1"
+                                    title={`Status: ${getStatusIcon(task.status).label} (click to cycle)`}
                                 >
-                                    {getIcon(task.status)}
+                                    {/* V2.12.1.1: Show custom status icons */}
+                                    <span className={`text-lg ${getStatusIcon(task.status).color}`}>
+                                        {getStatusIcon(task.status).icon}
+                                    </span>
                                 </div>
                                 
                                 {/* V2.12.1: Trophy icon - only if completed AND all subtasks complete */}
@@ -4655,7 +4669,7 @@
 
                         {/* Subtasks section */}
                         {isExpanded && (
-                            <div className="px-3 pb-3 bg-gray-50">
+                            <div className="px-3 pb-3 bg-gray-50" data-expanded="true">{/* V2.12.1.1: Mark expanded for focus protection */}
                                 {/* Full notes if present */}
                                 {task.notes && (
                                     <div className="mb-3 p-2 bg-white rounded border">
@@ -5519,9 +5533,16 @@
                                         
                                         // Keep focus with aggressive attempts
                                         // V2.11.1: CONDITIONAL - only focus if still in rapid entry mode
+                                        // V2.12.1.2 HOTFIX: Use ref to check if modal open (more reliable!)
                                         if (inputElement) {
                                             // Helper: Check if should still focus
                                             const shouldFocus = () => {
+                                                // V2.12.1.2: Check if user is in modal using ref
+                                                if (isInModalRef.current) {
+                                                    console.log('⏸️ Not stealing focus - user in modal/editing');
+                                                    return false;
+                                                }
+                                                
                                                 const timeSince = Date.now() - lastTaskCreationTimeRef.current;
                                                 return isCreatingTasksRef.current && timeSince < 2000;
                                             };
@@ -5587,9 +5608,13 @@
                                         
                                         // Keep focus with aggressive attempts
                                         // V2.11.1: CONDITIONAL - only focus if still in rapid entry mode
+                                        // V2.12.1.2 HOTFIX: Use ref to check if modal open (more reliable!)
                                         if (inputElement) {
                                             // Helper: Check if should still focus
                                             const shouldFocus = () => {
+                                                // V2.12.1.2: Check if user is in modal using ref
+                                                if (isInModalRef.current) return false;
+                                                
                                                 const timeSince = Date.now() - lastTaskCreationTimeRef.current;
                                                 return isCreatingTasksRef.current && timeSince < 2000;
                                             };
@@ -6169,9 +6194,13 @@
                                             
                                             // MATCH LISTS: Aggressive focus retention (14 attempts over 500ms)
                                             // V2.11.1: CONDITIONAL - only focus if still in rapid entry mode
+                                            // V2.12.1.2 HOTFIX: Use ref to check if modal open (more reliable!)
                                             if (inputElement) {
                                                 // Helper: Check if should still focus
                                                 const shouldFocus = () => {
+                                                    // V2.12.1.2: Check if user is in modal using ref
+                                                    if (isInModalRef.current) return false;
+                                                    
                                                     const timeSince = Date.now() - lastTaskCreationTimeRef.current;
                                                     return isCreatingTasksRef.current && timeSince < 2000;
                                                 };
@@ -6232,9 +6261,13 @@
                                             
                                             // MATCH LISTS: Aggressive focus retention
                                             // V2.11.1: CONDITIONAL - only focus if still in rapid entry mode
+                                            // V2.12.1.2 HOTFIX: Use ref to check if modal open (more reliable!)
                                             if (inputElement) {
                                                 // Helper: Check if should still focus
                                                 const shouldFocus = () => {
+                                                    // V2.12.1.2: Check if user is in modal using ref
+                                                    if (isInModalRef.current) return false;
+                                                    
                                                     const timeSince = Date.now() - lastTaskCreationTimeRef.current;
                                                     return isCreatingTasksRef.current && timeSince < 2000;
                                                 };
@@ -8784,13 +8817,19 @@
                     const taskDate = new Date(date);
                     const now = new Date();
                     
+                    console.log(`🔍 isInRange check: timeRange=${timeRange}, date=${date}, taskDate=${taskDate.toDateString()}`);
+                    
                     switch (timeRange) {
                         case 'today':
-                            return taskDate.toDateString() === now.toDateString();
+                            const result = taskDate.toDateString() === now.toDateString();
+                            console.log(`📅 TODAY check: ${result}`);
+                            return result;
                         case 'week':
                             const weekAgo = new Date(now);
                             weekAgo.setDate(now.getDate() - 7);
-                            return taskDate >= weekAgo;
+                            const weekResult = taskDate >= weekAgo;
+                            console.log(`📅 WEEK check: ${weekResult} (weekAgo=${weekAgo.toDateString()})`);
+                            return weekResult;
                         case 'month':
                             const monthAgo = new Date(now);
                             monthAgo.setMonth(now.getMonth() - 1);
