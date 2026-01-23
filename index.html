@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Life Ninja V2.12.1.3 - Nuclear Focus Fix</title>
+    <title>Life Ninja V2.12.1.5 - FINAL FIX</title>
     <script src="https://cdn.tailwindcss.com"></script>
     
     <script crossorigin src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
@@ -254,11 +254,15 @@
         };
         
         console.log('═══════════════════════════════════════════════');
-        console.log('🚀 VERSION: V2.12.1.3-FINAL-FIX-JAN22-1200 🚀');
-        console.log('🔥 Quick Edit: Ref set IMMEDIATELY on open');
-        console.log('✅ Ref reset on ALL close paths (Save/Skip/X)');
-        console.log('📊 Analytics: Fixed date logic (completion vs scheduled)');
-        console.log('🔍 Detailed points breakdown logging');
+        console.log('🚀 VERSION: V2.12.1.5-FINAL-FIX-JAN23-0900 🚀');
+        console.log('');
+        console.log('✅ VISIBLE VERSION in header: V2.12.1.5');
+        console.log('🎯 Active element check (never steal from inputs)');
+        console.log('🔍 Detailed logging: look for ⛔ BLOCKED');
+        console.log('📊 Analytics date logic fixed');
+        console.log('🏆 Completion zone working');
+        console.log('');
+        console.log('🔄 CACHE: Press Ctrl+Shift+R to hard refresh!');
         console.log('═══════════════════════════════════════════════');
         console.log('🖥️ Device detected:', getDeviceId());
         
@@ -5539,32 +5543,46 @@
                                         
                                         // Keep focus with aggressive attempts
                                         // V2.11.1: CONDITIONAL - only focus if still in rapid entry mode
-                                        // V2.12.1.3: NUCLEAR - Kill rapid entry when modal opens!
+                                        // V2.12.1.4: CHECK ACTIVE ELEMENT - Never steal from inputs!
                                         if (inputElement) {
                                             // Helper: Check if should still focus
                                             const shouldFocus = () => {
-                                                console.log(`🔍 shouldFocus check: isInModal=${isInModalRef.current}, isCreating=${isCreatingTasksRef.current}`);
+                                                // V2.12.1.4: Check what user is currently typing in
+                                                const activeEl = document.activeElement;
+                                                const activeTag = activeEl?.tagName?.toLowerCase();
+                                                const activeId = activeEl?.id || 'unknown';
+                                                
+                                                console.log(`🔍 [LIST] shouldFocus check:`);
+                                                console.log(`  👉 Active: ${activeTag}#${activeId}`);
+                                                console.log(`  🚪 Modal: ${isInModalRef.current}`);
+                                                console.log(`  🏃 Creating: ${isCreatingTasksRef.current}`);
+                                                
+                                                // V2.12.1.4: CRITICAL - Never steal from ANY input/textarea!
+                                                if (activeTag === 'input' || activeTag === 'textarea') {
+                                                    console.log(`⛔ BLOCKED: User typing in ${activeTag}#${activeId}`);
+                                                    return false;
+                                                }
                                                 
                                                 // V2.12.1.3: Check if user is in modal using ref
                                                 if (isInModalRef.current) {
-                                                    console.log('⏸️ Not stealing focus - user in modal/editing');
+                                                    console.log('⏸️ BLOCKED: User in modal');
                                                     return false;
                                                 }
                                                 
                                                 if (!isCreatingTasksRef.current) {
-                                                    console.log('⏸️ Not stealing focus - rapid entry disabled');
+                                                    console.log('⏸️ BLOCKED: Rapid entry OFF');
                                                     return false;
                                                 }
                                                 
                                                 const timeSince = Date.now() - lastTaskCreationTimeRef.current;
-                                                console.log(`⏱️ Time since last task: ${timeSince}ms`);
+                                                console.log(`⏱️ Time since: ${timeSince}ms`);
                                                 
                                                 if (timeSince >= 2000) {
-                                                    console.log('⏸️ Not stealing focus - timeout expired');
+                                                    console.log('⏸️ BLOCKED: Timeout');
                                                     return false;
                                                 }
                                                 
-                                                console.log('✅ OK to steal focus');
+                                                console.log('✅ OK to refocus input!');
                                                 return true;
                                             };
                                             
@@ -5629,11 +5647,18 @@
                                         
                                         // Keep focus with aggressive attempts
                                         // V2.11.1: CONDITIONAL - only focus if still in rapid entry mode
-                                        // V2.12.1.2 HOTFIX: Use ref to check if modal open (more reliable!)
+                                        // V2.12.1.4: CHECK ACTIVE ELEMENT - Never steal from inputs!
                                         if (inputElement) {
                                             // Helper: Check if should still focus
                                             const shouldFocus = () => {
-                                                // V2.12.1.2: Check if user is in modal using ref
+                                                const activeEl = document.activeElement;
+                                                const activeTag = activeEl?.tagName?.toLowerCase();
+                                                
+                                                // V2.12.1.4: Never steal from ANY input/textarea
+                                                if (activeTag === 'input' || activeTag === 'textarea') {
+                                                    return false;
+                                                }
+                                                
                                                 if (isInModalRef.current) return false;
                                                 
                                                 const timeSince = Date.now() - lastTaskCreationTimeRef.current;
@@ -6215,11 +6240,16 @@
                                             
                                             // MATCH LISTS: Aggressive focus retention (14 attempts over 500ms)
                                             // V2.11.1: CONDITIONAL - only focus if still in rapid entry mode
-                                            // V2.12.1.2 HOTFIX: Use ref to check if modal open (more reliable!)
+                                            // V2.12.1.4: CHECK ACTIVE ELEMENT - Never steal from inputs!
                                             if (inputElement) {
                                                 // Helper: Check if should still focus
                                                 const shouldFocus = () => {
-                                                    // V2.12.1.2: Check if user is in modal using ref
+                                                    const activeEl = document.activeElement;
+                                                    const activeTag = activeEl?.tagName?.toLowerCase();
+                                                    
+                                                    // V2.12.1.4: Never steal from ANY input/textarea
+                                                    if (activeTag === 'input' || activeTag === 'textarea') return false;
+                                                    
                                                     if (isInModalRef.current) return false;
                                                     
                                                     const timeSince = Date.now() - lastTaskCreationTimeRef.current;
@@ -6282,11 +6312,16 @@
                                             
                                             // MATCH LISTS: Aggressive focus retention
                                             // V2.11.1: CONDITIONAL - only focus if still in rapid entry mode
-                                            // V2.12.1.2 HOTFIX: Use ref to check if modal open (more reliable!)
+                                            // V2.12.1.4: CHECK ACTIVE ELEMENT - Never steal from inputs!
                                             if (inputElement) {
                                                 // Helper: Check if should still focus
                                                 const shouldFocus = () => {
-                                                    // V2.12.1.2: Check if user is in modal using ref
+                                                    const activeEl = document.activeElement;
+                                                    const activeTag = activeEl?.tagName?.toLowerCase();
+                                                    
+                                                    // V2.12.1.4: Never steal from ANY input/textarea
+                                                    if (activeTag === 'input' || activeTag === 'textarea') return false;
+                                                    
                                                     if (isInModalRef.current) return false;
                                                     
                                                     const timeSince = Date.now() - lastTaskCreationTimeRef.current;
@@ -9431,7 +9466,8 @@
                             <div className="text-center mb-8">
                                 <Target className="text-indigo-600 mx-auto mb-4" size={48} />
                                 <h1 className="text-3xl font-bold text-gray-900 mb-2">Life Ninja</h1>
-                                <p className="text-gray-600">V2.11.6 • Scroll Fixed</p>
+                                <p className="text-xl font-bold text-indigo-600 mb-1">V2.12.1.5</p>
+                                <p className="text-gray-600 text-sm">Active Element Check + Draft Fix</p>
                             </div>
                             
                             <div className="mb-6">
@@ -9542,7 +9578,7 @@
                                 <div className="flex items-center gap-3">
                                     <Target className="text-indigo-600" size={32} />
                                     <h1 className="text-2xl font-bold text-gray-900">Life Ninja</h1>
-                                    <span className="text-xs bg-indigo-100 text-indigo-700 px-2 py-1 rounded font-semibold">V2.7.1</span>
+                                    <span className="text-sm bg-indigo-600 text-white px-3 py-1 rounded-full font-bold">V2.12.1.5</span>
                                 </div>
 
                                 <div className="flex items-center gap-4">
