@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Life Ninja V2.12.1.5 - FINAL FIX</title>
+    <title>Life Ninja V2.12.1.6 - UseEffect Fix</title>
     <script src="https://cdn.tailwindcss.com"></script>
     
     <script crossorigin src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
@@ -254,13 +254,12 @@
         };
         
         console.log('═══════════════════════════════════════════════');
-        console.log('🚀 VERSION: V2.12.1.5-FINAL-FIX-JAN23-0900 🚀');
+        console.log('🚀 VERSION: V2.12.1.6-USEEFFECT-FIX-JAN23-1530 🚀');
         console.log('');
-        console.log('✅ VISIBLE VERSION in header: V2.12.1.5');
-        console.log('🎯 Active element check (never steal from inputs)');
-        console.log('🔍 Detailed logging: look for ⛔ BLOCKED');
-        console.log('📊 Analytics date logic fixed');
-        console.log('🏆 Completion zone working');
+        console.log('🎯 CRITICAL FIX: useEffect focus stealing!');
+        console.log('✅ Fixed 2 useEffect hooks that were NOT checking activeElement');
+        console.log('🔍 Look for: ⛔ [USEEFFECT] BLOCKED');
+        console.log('📊 This SHOULD finally fix the issue!');
         console.log('');
         console.log('🔄 CACHE: Press Ctrl+Shift+R to hard refresh!');
         console.log('═══════════════════════════════════════════════');
@@ -5737,9 +5736,20 @@
                 const newListInputRef = useRef(null);
                 
                 // V2.7.1: Aggressive refocus when lists change during rapid entry
+                // V2.12.1.6: CHECK ACTIVE ELEMENT - Never steal from other inputs!
                 useEffect(() => {
                     console.log('🔄 useEffect triggered - lists.length:', customLists.length, 'rapid mode:', isCreatingListsRef.current);
                     if (isCreatingListsRef.current && newListInputRef.current) {
+                        // V2.12.1.6: Check what user is currently typing in
+                        const activeEl = document.activeElement;
+                        const activeTag = activeEl?.tagName?.toLowerCase();
+                        
+                        // NEVER steal from ANY input/textarea!
+                        if (activeTag === 'input' || activeTag === 'textarea') {
+                            console.log('⛔ [LISTS-USEEFFECT] BLOCKED: User typing in', activeTag);
+                            return;
+                        }
+                        
                         console.log('🎯 Refocusing due to lists change');
                         // Lists changed, we're in rapid entry mode, refocus NOW
                         newListInputRef.current.focus();
@@ -5926,8 +5936,21 @@
                 const newTaskInputRef = useRef(null);
                 
                 // V2.6.3-AGGRESSIVE: Refocus input whenever tasks change during rapid entry
+                // V2.12.1.6: CHECK ACTIVE ELEMENT - Never steal from other inputs!
                 useEffect(() => {
                     if (isCreatingTasksRef.current && newTaskInputRef.current) {
+                        // V2.12.1.6: Check what user is currently typing in
+                        const activeEl = document.activeElement;
+                        const activeTag = activeEl?.tagName?.toLowerCase();
+                        
+                        // NEVER steal from ANY input/textarea!
+                        if (activeTag === 'input' || activeTag === 'textarea') {
+                            console.log('⛔ [USEEFFECT] BLOCKED: User typing in', activeTag);
+                            return;
+                        }
+                        
+                        console.log('✅ [USEEFFECT] OK to refocus (rapid entry active)');
+                        
                         // Tasks changed, we're in rapid entry mode, refocus NOW
                         newTaskInputRef.current.focus();
                         
@@ -9466,8 +9489,8 @@
                             <div className="text-center mb-8">
                                 <Target className="text-indigo-600 mx-auto mb-4" size={48} />
                                 <h1 className="text-3xl font-bold text-gray-900 mb-2">Life Ninja</h1>
-                                <p className="text-xl font-bold text-indigo-600 mb-1">V2.12.1.5</p>
-                                <p className="text-gray-600 text-sm">Active Element Check + Draft Fix</p>
+                                <p className="text-xl font-bold text-indigo-600 mb-1">V2.12.1.6</p>
+                                <p className="text-gray-600 text-sm">UseEffect Fix - The Real Culprit!</p>
                             </div>
                             
                             <div className="mb-6">
@@ -9578,7 +9601,7 @@
                                 <div className="flex items-center gap-3">
                                     <Target className="text-indigo-600" size={32} />
                                     <h1 className="text-2xl font-bold text-gray-900">Life Ninja</h1>
-                                    <span className="text-sm bg-indigo-600 text-white px-3 py-1 rounded-full font-bold">V2.12.1.5</span>
+                                    <span className="text-sm bg-indigo-600 text-white px-3 py-1 rounded-full font-bold">V2.12.1.6</span>
                                 </div>
 
                                 <div className="flex items-center gap-4">
