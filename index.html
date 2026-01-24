@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Life Ninja V2.12.1.6 - UseEffect Fix</title>
+    <title>Life Ninja V2.12.1.7 - Global Focus Guard</title>
     <script src="https://cdn.tailwindcss.com"></script>
     
     <script crossorigin src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
@@ -254,18 +254,72 @@
         };
         
         console.log('═══════════════════════════════════════════════');
-        console.log('🚀 VERSION: V2.12.1.6-USEEFFECT-FIX-JAN23-1530 🚀');
+        console.log('🚀 VERSION: V2.12.1.7-GLOBAL-GUARD-JAN24-0030 🚀');
         console.log('');
-        console.log('🎯 CRITICAL FIX: useEffect focus stealing!');
-        console.log('✅ Fixed 2 useEffect hooks that were NOT checking activeElement');
-        console.log('🔍 Look for: ⛔ [USEEFFECT] BLOCKED');
-        console.log('📊 This SHOULD finally fix the issue!');
+        console.log('🛡️ GLOBAL FOCUS GUARD - Intercepts ALL focus changes!');
+        console.log('⌨️ Tracks when user is typing');
+        console.log('🚫 Blocks focus changes during typing');
+        console.log('↩️ Restores focus to typing element');
         console.log('');
-        console.log('🔄 CACHE: Press Ctrl+Shift+R to hard refresh!');
+        console.log('🔍 Look for: 🚫 [GLOBAL GUARD] Focus change blocked!');
         console.log('═══════════════════════════════════════════════');
         console.log('🖥️ Device detected:', getDeviceId());
         
         console.log('✅ Supabase ready');
+        
+        // ============================================================================
+        // V2.12.1.7: GLOBAL FOCUS GUARD - Prevent focus stealing during typing
+        // ============================================================================
+        
+        // Store the last actively typing element
+        let activeTypingElement = null;
+        let typingTimeout = null;
+        
+        // Track when user starts typing
+        document.addEventListener('input', (e) => {
+            if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA') {
+                activeTypingElement = e.target;
+                console.log('⌨️ User typing in:', e.target.tagName, e.target.id || e.target.placeholder);
+                
+                // Clear previous timeout
+                if (typingTimeout) clearTimeout(typingTimeout);
+                
+                // Reset after 500ms of no typing
+                typingTimeout = setTimeout(() => {
+                    console.log('⏹️ Typing stopped');
+                    activeTypingElement = null;
+                }, 500);
+            }
+        }, true); // Use capture phase!
+        
+        // Intercept ALL focus changes
+        document.addEventListener('focus', (e) => {
+            // If user is actively typing
+            if (activeTypingElement && activeTypingElement !== e.target) {
+                const targetTag = e.target.tagName;
+                const targetId = e.target.id || e.target.className || 'unknown';
+                
+                console.log('🚫 [GLOBAL GUARD] Focus change blocked!');
+                console.log('  From:', activeTypingElement.tagName, activeTypingElement.id || activeTypingElement.placeholder);
+                console.log('  To:', targetTag, targetId);
+                
+                // Prevent the focus change!
+                e.preventDefault();
+                e.stopPropagation();
+                
+                // Restore focus to where user was typing
+                setTimeout(() => {
+                    if (activeTypingElement) {
+                        activeTypingElement.focus();
+                        console.log('↩️ Focus restored to typing element');
+                    }
+                }, 0);
+                
+                return false;
+            }
+        }, true); // Use capture phase to intercept BEFORE React!
+        
+        console.log('🛡️ Global focus guard ACTIVE!');
 
         // ============================================================================
         // UTILITY FUNCTIONS
@@ -9489,8 +9543,8 @@
                             <div className="text-center mb-8">
                                 <Target className="text-indigo-600 mx-auto mb-4" size={48} />
                                 <h1 className="text-3xl font-bold text-gray-900 mb-2">Life Ninja</h1>
-                                <p className="text-xl font-bold text-indigo-600 mb-1">V2.12.1.6</p>
-                                <p className="text-gray-600 text-sm">UseEffect Fix - The Real Culprit!</p>
+                                <p className="text-xl font-bold text-indigo-600 mb-1">V2.12.1.7</p>
+                                <p className="text-gray-600 text-sm">Global Focus Guard - Nuclear Option!</p>
                             </div>
                             
                             <div className="mb-6">
@@ -9601,7 +9655,7 @@
                                 <div className="flex items-center gap-3">
                                     <Target className="text-indigo-600" size={32} />
                                     <h1 className="text-2xl font-bold text-gray-900">Life Ninja</h1>
-                                    <span className="text-sm bg-indigo-600 text-white px-3 py-1 rounded-full font-bold">V2.12.1.6</span>
+                                    <span className="text-sm bg-indigo-600 text-white px-3 py-1 rounded-full font-bold">V2.12.1.7</span>
                                 </div>
 
                                 <div className="flex items-center gap-4">
