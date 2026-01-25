@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Life Ninja V2.12.2.3 - Simple Focus Fix</title>
+    <title>Life Ninja V2.12.2.4 - Uncontrolled Input</title>
     <script src="https://cdn.tailwindcss.com"></script>
     
     <script crossorigin src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
@@ -254,14 +254,16 @@
         };
         
         console.log('═══════════════════════════════════════════════');
-        console.log('🚀 VERSION: V2.12.2.3-SIMPLE-FOCUS-JAN25-2000 🚀');
+        console.log('🚀 VERSION: V2.12.2.4-UNCONTROLLED-JAN25-2030 🚀');
         console.log('');
-        console.log('✨ THE SIMPLE FIX:');
-        console.log('🔍 Restore focus DIRECTLY in onChange handler');
-        console.log('🚫 Ref no longer saves empty text');
+        console.log('✨ THE REAL FIX:');
+        console.log('🎯 Search input is now UNCONTROLLED');
+        console.log('⚡ No state updates on keystroke = No re-renders = No focus loss!');
+        console.log('🔍 Only updates searchQuery after 300ms debounce');
         console.log('');
         console.log('🔍 Look for:');
-        console.log('  🔍 Restoring focus after search filter');
+        console.log('  🔍 Search focused (once when you click)');
+        console.log('  🔍 Updating search query (after typing stops)');
         console.log('═══════════════════════════════════════════════');
         console.log('🖥️ Device detected:', getDeviceId());
         
@@ -5930,10 +5932,9 @@
             const ListView = ({ newTaskTextRef }) => {
                 // V2.6.3-REF: Use local state for typing (no parent re-renders), persist in ref across unmounts
                 const [newTaskText, setNewTaskText] = useState(() => newTaskTextRef.current || '');
-                const [localSearch, setLocalSearch] = useState(searchQuery);
                 const searchTimeoutRef = useRef(null);
                 const newTaskInputRef = useRef(null);
-                const searchInputRef = useRef(null);  // V2.12.2.1: Track search input
+                const searchInputRef = useRef(null);  // V2.12.2.4: Search input ref
                 
                 // V2.6.3-AGGRESSIVE: Refocus input whenever tasks change during rapid entry
                 // V2.12.1.6: CHECK ACTIVE ELEMENT - Never steal from other inputs!
@@ -5983,28 +5984,22 @@
                                         ref={searchInputRef}
                                         type="text"
                                         placeholder="Search tasks..."
-                                        value={localSearch}
+                                        defaultValue={searchQuery}
                                         onFocus={() => {
                                             // V2.12.2: Disable rapid entry when focusing search
                                             console.log('🔍 Search focused - disabling rapid entry');
                                             isCreatingTasksRef.current = false;
                                         }}
                                         onChange={(e) => {
+                                            // V2.12.2.4: UNCONTROLLED input - no setState!
+                                            // Just debounce the parent searchQuery update
                                             const value = e.target.value;
-                                            setLocalSearch(value);
-                                            // Debounce search for smooth UX
                                             if (searchTimeoutRef.current) {
                                                 clearTimeout(searchTimeoutRef.current);
                                             }
                                             searchTimeoutRef.current = setTimeout(() => {
+                                                console.log('🔍 Updating search query to:', value);
                                                 setSearchQuery(value);
-                                                // V2.12.2.3: Restore focus after searchQuery update
-                                                console.log('🔍 Restoring focus after search filter');
-                                                setTimeout(() => {
-                                                    if (searchInputRef.current) {
-                                                        searchInputRef.current.focus();
-                                                    }
-                                                }, 50);  // Small delay for re-render
                                             }, 300);
                                         }}
                                         className="w-full pl-10 pr-4 py-2 border rounded-lg"
@@ -9506,8 +9501,8 @@
                             <div className="text-center mb-8">
                                 <Target className="text-indigo-600 mx-auto mb-4" size={48} />
                                 <h1 className="text-3xl font-bold text-gray-900 mb-2">Life Ninja</h1>
-                                <p className="text-xl font-bold text-indigo-600 mb-1">V2.12.2.3</p>
-                                <p className="text-gray-600 text-sm">Simple Focus Fix - Direct Restore</p>
+                                <p className="text-xl font-bold text-indigo-600 mb-1">V2.12.2.4</p>
+                                <p className="text-gray-600 text-sm">Uncontrolled Input - No Re-renders!</p>
                             </div>
                             
                             <div className="mb-6">
@@ -9618,7 +9613,7 @@
                                 <div className="flex items-center gap-3">
                                     <Target className="text-indigo-600" size={32} />
                                     <h1 className="text-2xl font-bold text-gray-900">Life Ninja</h1>
-                                    <span className="text-sm bg-blue-600 text-white px-3 py-1 rounded-full font-bold">V2.12.2.3</span>
+                                    <span className="text-sm bg-purple-600 text-white px-3 py-1 rounded-full font-bold">V2.12.2.4</span>
                                 </div>
 
                                 <div className="flex items-center gap-4">
