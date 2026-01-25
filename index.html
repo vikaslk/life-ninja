@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Life Ninja V2.12.2.0 - The Clean Solution</title>
+    <title>Life Ninja V2.12.2.1 - Focus & Enter</title>
     <script src="https://cdn.tailwindcss.com"></script>
     
     <script crossorigin src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
@@ -254,16 +254,15 @@
         };
         
         console.log('═══════════════════════════════════════════════');
-        console.log('🚀 VERSION: V2.12.2.0-CLEAN-SOLUTION-JAN24-0130 🚀');
+        console.log('🚀 VERSION: V2.12.2.1-FOCUS-AND-ENTER-JAN25-1800 🚀');
         console.log('');
-        console.log('✨ THE CLEAN SOLUTION:');
-        console.log('❌ Removed ALL autoFocus attributes');
-        console.log('✅ Disable rapid entry when focusing search/modal');
-        console.log('🎯 NO fighting, NO flickering, NO character loss');
+        console.log('✨ NEW IN V2.12.2.1:');
+        console.log('🔍 Search focus restored after filter updates');
+        console.log('⏎ Enter key saves Quick Edit modal');
         console.log('');
         console.log('🔍 Look for:');
-        console.log('  🔍 Search focused - disabling rapid entry');
-        console.log('  📝 Quick Edit focused - disabling rapid entry');
+        console.log('  🔍 Restoring search focus after filter update');
+        console.log('  ⏎ Enter pressed - saving Quick Edit');
         console.log('═══════════════════════════════════════════════');
         console.log('🖥️ Device detected:', getDeviceId());
         
@@ -5935,6 +5934,16 @@
                 const [localSearch, setLocalSearch] = useState(searchQuery);
                 const searchTimeoutRef = useRef(null);
                 const newTaskInputRef = useRef(null);
+                const searchInputRef = useRef(null);  // V2.12.2.1: Track search input
+                const wasSearchFocusedRef = useRef(false);  // V2.12.2.1: Track if search was focused
+                
+                // V2.12.2.1: Restore search focus after re-render from filtering
+                useEffect(() => {
+                    if (wasSearchFocusedRef.current && searchInputRef.current) {
+                        console.log('🔍 Restoring search focus after filter update');
+                        searchInputRef.current.focus();
+                    }
+                }, [filteredTasks.length]); // Re-run when filtered results change
                 
                 // V2.6.3-AGGRESSIVE: Refocus input whenever tasks change during rapid entry
                 // V2.12.1.6: CHECK ACTIVE ELEMENT - Never steal from other inputs!
@@ -5978,6 +5987,7 @@
                                 <div className="flex-1 relative">
                                     <Search className="absolute left-3 top-2.5 text-gray-400" size={20} />
                                     <input
+                                        ref={searchInputRef}
                                         type="text"
                                         placeholder="Search tasks..."
                                         value={localSearch}
@@ -5985,6 +5995,10 @@
                                             // V2.12.2: Disable rapid entry when focusing search
                                             console.log('🔍 Search focused - disabling rapid entry');
                                             isCreatingTasksRef.current = false;
+                                            wasSearchFocusedRef.current = true;  // V2.12.2.1: Track focus
+                                        }}
+                                        onBlur={() => {
+                                            wasSearchFocusedRef.current = false;  // V2.12.2.1: Track blur
                                         }}
                                         onChange={(e) => {
                                             setLocalSearch(e.target.value);
@@ -9495,8 +9509,8 @@
                             <div className="text-center mb-8">
                                 <Target className="text-indigo-600 mx-auto mb-4" size={48} />
                                 <h1 className="text-3xl font-bold text-gray-900 mb-2">Life Ninja</h1>
-                                <p className="text-xl font-bold text-indigo-600 mb-1">V2.12.2.0</p>
-                                <p className="text-gray-600 text-sm">The Clean Solution - No Fighting!</p>
+                                <p className="text-xl font-bold text-indigo-600 mb-1">V2.12.2.1</p>
+                                <p className="text-gray-600 text-sm">Search Focus + Enter to Save</p>
                             </div>
                             
                             <div className="mb-6">
@@ -9607,7 +9621,7 @@
                                 <div className="flex items-center gap-3">
                                     <Target className="text-indigo-600" size={32} />
                                     <h1 className="text-2xl font-bold text-gray-900">Life Ninja</h1>
-                                    <span className="text-sm bg-green-600 text-white px-3 py-1 rounded-full font-bold">V2.12.2.0</span>
+                                    <span className="text-sm bg-green-600 text-white px-3 py-1 rounded-full font-bold">V2.12.2.1</span>
                                 </div>
 
                                 <div className="flex items-center gap-4">
@@ -10142,6 +10156,34 @@
                                                 // V2.12.2: Disable rapid entry when editing in modal
                                                 console.log('📝 Quick Edit focused - disabling rapid entry');
                                                 isCreatingTasksRef.current = false;
+                                            }}
+                                            onKeyDown={(e) => {
+                                                // V2.12.2.1: Save on Enter key
+                                                if (e.key === 'Enter') {
+                                                    e.preventDefault();
+                                                    console.log('⏎ Enter pressed - saving Quick Edit');
+                                                    // Trigger save
+                                                    if (quickEditTask.isSubtask && quickEditTask.parentId) {
+                                                        updateSubtask(quickEditTask.parentId, quickEditTask.id, {
+                                                            text: quickEditTask.text,
+                                                            priority: quickEditTask.priority,
+                                                            taskType: quickEditTask.taskType,
+                                                            persona: quickEditTask.persona,
+                                                            timeSlot: quickEditTask.timeSlot,
+                                                            estimatedDuration: quickEditTask.estimatedDuration,
+                                                            dueDate: quickEditTask.dueDate,
+                                                            notes: quickEditTask.notes
+                                                        });
+                                                        showToast('Subtask updated!');
+                                                    } else {
+                                                        setTasks(prev => prev.map(t => 
+                                                            t.id === quickEditTask.id ? quickEditTask : t
+                                                        ));
+                                                        showToast('Task updated!');
+                                                    }
+                                                    isInModalRef.current = false;
+                                                    setShowQuickEdit(false);
+                                                }
                                             }}
                                             onChange={(e) => setQuickEditTask({...quickEditTask, text: e.target.value})}
                                             className="w-full px-3 py-2 border rounded-lg"
