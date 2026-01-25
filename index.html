@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Life Ninja V2.12.2.2 - Search Fix</title>
+    <title>Life Ninja V2.12.2.3 - Simple Focus Fix</title>
     <script src="https://cdn.tailwindcss.com"></script>
     
     <script crossorigin src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
@@ -254,15 +254,14 @@
         };
         
         console.log('═══════════════════════════════════════════════');
-        console.log('🚀 VERSION: V2.12.2.2-SEARCH-FIX-JAN25-1900 🚀');
+        console.log('🚀 VERSION: V2.12.2.3-SIMPLE-FOCUS-JAN25-2000 🚀');
         console.log('');
-        console.log('🐛 CRITICAL FIXES:');
-        console.log('🔍 Search focus now uses searchQuery (not filteredTasks)');
+        console.log('✨ THE SIMPLE FIX:');
+        console.log('🔍 Restore focus DIRECTLY in onChange handler');
         console.log('🚫 Ref no longer saves empty text');
         console.log('');
         console.log('🔍 Look for:');
-        console.log('  🔍 Restoring search focus after searchQuery update');
-        console.log('  ⏎ Enter pressed - saving Quick Edit');
+        console.log('  🔍 Restoring focus after search filter');
         console.log('═══════════════════════════════════════════════');
         console.log('🖥️ Device detected:', getDeviceId());
         
@@ -5935,19 +5934,6 @@
                 const searchTimeoutRef = useRef(null);
                 const newTaskInputRef = useRef(null);
                 const searchInputRef = useRef(null);  // V2.12.2.1: Track search input
-                const wasSearchFocusedRef = useRef(false);  // V2.12.2.1: Track if search was focused
-                
-                // V2.12.2.2: Restore search focus after searchQuery changes (triggers re-render)
-                useEffect(() => {
-                    if (wasSearchFocusedRef.current && searchInputRef.current) {
-                        console.log('🔍 Restoring search focus after searchQuery update');
-                        setTimeout(() => {
-                            if (wasSearchFocusedRef.current && searchInputRef.current) {
-                                searchInputRef.current.focus();
-                            }
-                        }, 0);
-                    }
-                }, [searchQuery]); // Re-run when searchQuery changes (not filteredTasks!)
                 
                 // V2.6.3-AGGRESSIVE: Refocus input whenever tasks change during rapid entry
                 // V2.12.1.6: CHECK ACTIVE ELEMENT - Never steal from other inputs!
@@ -6002,19 +5988,23 @@
                                             // V2.12.2: Disable rapid entry when focusing search
                                             console.log('🔍 Search focused - disabling rapid entry');
                                             isCreatingTasksRef.current = false;
-                                            wasSearchFocusedRef.current = true;  // V2.12.2.1: Track focus
-                                        }}
-                                        onBlur={() => {
-                                            wasSearchFocusedRef.current = false;  // V2.12.2.1: Track blur
                                         }}
                                         onChange={(e) => {
-                                            setLocalSearch(e.target.value);
+                                            const value = e.target.value;
+                                            setLocalSearch(value);
                                             // Debounce search for smooth UX
                                             if (searchTimeoutRef.current) {
                                                 clearTimeout(searchTimeoutRef.current);
                                             }
                                             searchTimeoutRef.current = setTimeout(() => {
-                                                setSearchQuery(e.target.value);
+                                                setSearchQuery(value);
+                                                // V2.12.2.3: Restore focus after searchQuery update
+                                                console.log('🔍 Restoring focus after search filter');
+                                                setTimeout(() => {
+                                                    if (searchInputRef.current) {
+                                                        searchInputRef.current.focus();
+                                                    }
+                                                }, 50);  // Small delay for re-render
                                             }, 300);
                                         }}
                                         className="w-full pl-10 pr-4 py-2 border rounded-lg"
@@ -9516,8 +9506,8 @@
                             <div className="text-center mb-8">
                                 <Target className="text-indigo-600 mx-auto mb-4" size={48} />
                                 <h1 className="text-3xl font-bold text-gray-900 mb-2">Life Ninja</h1>
-                                <p className="text-xl font-bold text-indigo-600 mb-1">V2.12.2.2</p>
-                                <p className="text-gray-600 text-sm">Search Focus Fix (for real!)</p>
+                                <p className="text-xl font-bold text-indigo-600 mb-1">V2.12.2.3</p>
+                                <p className="text-gray-600 text-sm">Simple Focus Fix - Direct Restore</p>
                             </div>
                             
                             <div className="mb-6">
@@ -9628,7 +9618,7 @@
                                 <div className="flex items-center gap-3">
                                     <Target className="text-indigo-600" size={32} />
                                     <h1 className="text-2xl font-bold text-gray-900">Life Ninja</h1>
-                                    <span className="text-sm bg-green-600 text-white px-3 py-1 rounded-full font-bold">V2.12.2.2</span>
+                                    <span className="text-sm bg-blue-600 text-white px-3 py-1 rounded-full font-bold">V2.12.2.3</span>
                                 </div>
 
                                 <div className="flex items-center gap-4">
