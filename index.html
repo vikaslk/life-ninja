@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Life Ninja V2.12.2.1 - Focus & Enter</title>
+    <title>Life Ninja V2.12.2.2 - Search Fix</title>
     <script src="https://cdn.tailwindcss.com"></script>
     
     <script crossorigin src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
@@ -254,14 +254,14 @@
         };
         
         console.log('═══════════════════════════════════════════════');
-        console.log('🚀 VERSION: V2.12.2.1-FOCUS-AND-ENTER-JAN25-1800 🚀');
+        console.log('🚀 VERSION: V2.12.2.2-SEARCH-FIX-JAN25-1900 🚀');
         console.log('');
-        console.log('✨ NEW IN V2.12.2.1:');
-        console.log('🔍 Search focus restored after filter updates');
-        console.log('⏎ Enter key saves Quick Edit modal');
+        console.log('🐛 CRITICAL FIXES:');
+        console.log('🔍 Search focus now uses searchQuery (not filteredTasks)');
+        console.log('🚫 Ref no longer saves empty text');
         console.log('');
         console.log('🔍 Look for:');
-        console.log('  🔍 Restoring search focus after filter update');
+        console.log('  🔍 Restoring search focus after searchQuery update');
         console.log('  ⏎ Enter pressed - saving Quick Edit');
         console.log('═══════════════════════════════════════════════');
         console.log('🖥️ Device detected:', getDeviceId());
@@ -5937,13 +5937,17 @@
                 const searchInputRef = useRef(null);  // V2.12.2.1: Track search input
                 const wasSearchFocusedRef = useRef(false);  // V2.12.2.1: Track if search was focused
                 
-                // V2.12.2.1: Restore search focus after re-render from filtering
+                // V2.12.2.2: Restore search focus after searchQuery changes (triggers re-render)
                 useEffect(() => {
                     if (wasSearchFocusedRef.current && searchInputRef.current) {
-                        console.log('🔍 Restoring search focus after filter update');
-                        searchInputRef.current.focus();
+                        console.log('🔍 Restoring search focus after searchQuery update');
+                        setTimeout(() => {
+                            if (wasSearchFocusedRef.current && searchInputRef.current) {
+                                searchInputRef.current.focus();
+                            }
+                        }, 0);
                     }
-                }, [filteredTasks.length]); // Re-run when filtered results change
+                }, [searchQuery]); // Re-run when searchQuery changes (not filteredTasks!)
                 
                 // V2.6.3-AGGRESSIVE: Refocus input whenever tasks change during rapid entry
                 // V2.12.1.6: CHECK ACTIVE ELEMENT - Never steal from other inputs!
@@ -5972,10 +5976,13 @@
                     }
                 }, [tasks.length]); // Re-run when tasks array length changes
                 
-                // Save to ref before unmount
+                // Save to ref before unmount (V2.12.2.2: Don't save empty strings)
                 useEffect(() => {
                     return () => {
-                        newTaskTextRef.current = newTaskText;
+                        // Only save non-empty text to ref
+                        if (newTaskText.trim()) {
+                            newTaskTextRef.current = newTaskText;
+                        }
                     };
                 }, [newTaskText, newTaskTextRef]);
 
@@ -9509,8 +9516,8 @@
                             <div className="text-center mb-8">
                                 <Target className="text-indigo-600 mx-auto mb-4" size={48} />
                                 <h1 className="text-3xl font-bold text-gray-900 mb-2">Life Ninja</h1>
-                                <p className="text-xl font-bold text-indigo-600 mb-1">V2.12.2.1</p>
-                                <p className="text-gray-600 text-sm">Search Focus + Enter to Save</p>
+                                <p className="text-xl font-bold text-indigo-600 mb-1">V2.12.2.2</p>
+                                <p className="text-gray-600 text-sm">Search Focus Fix (for real!)</p>
                             </div>
                             
                             <div className="mb-6">
@@ -9621,7 +9628,7 @@
                                 <div className="flex items-center gap-3">
                                     <Target className="text-indigo-600" size={32} />
                                     <h1 className="text-2xl font-bold text-gray-900">Life Ninja</h1>
-                                    <span className="text-sm bg-green-600 text-white px-3 py-1 rounded-full font-bold">V2.12.2.1</span>
+                                    <span className="text-sm bg-green-600 text-white px-3 py-1 rounded-full font-bold">V2.12.2.2</span>
                                 </div>
 
                                 <div className="flex items-center gap-4">
