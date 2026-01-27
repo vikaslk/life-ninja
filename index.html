@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Life Ninja V2.12.2.10 - No Screen Jumps</title>
+    <title>Life Ninja V2.12.2.11 - Smart Timer</title>
     <script src="https://cdn.tailwindcss.com"></script>
     
     <script crossorigin src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
@@ -254,16 +254,16 @@
         };
         
         console.log('═══════════════════════════════════════════════');
-        console.log('🚀 VERSION: V2.12.2.10-NO-SCREEN-JUMPS-JAN26-1700 🚀');
+        console.log('🚀 VERSION: V2.12.2.11-SMART-TIMER-JAN26-1730 🚀');
         console.log('');
-        console.log('🐛 CRITICAL FIX:');
-        console.log('❌ Search focus was restoring during drag, modal, subtask expand');
-        console.log('✅ Now only restores if search focused within last 2 seconds');
-        console.log('✅ Prevents screen jumps during other interactions');
+        console.log('✨ TWO CRITICAL FIXES:');
+        console.log('⏱️  Timer updates on EVERY keystroke (not just click)');
+        console.log('📝 If search has text, always restore focus');
+        console.log('🚫 Removed 4000+ completion zone logs (performance!)');
         console.log('');
         console.log('🔍 New behavior:');
-        console.log('  ⛔ [SEARCH] BLOCKED: Search not recently focused');
-        console.log('  🔍 Restoring search focus (was focused X ms ago)');
+        console.log('  🔍 Restoring search focus (has text: ...)');
+        console.log('  ⛔ BLOCKED: Not recent AND no text');
         console.log('═══════════════════════════════════════════════');
         console.log('🖥️ Device detected:', getDeviceId());
         
@@ -2138,9 +2138,8 @@
             const filteredTasks = useMemo(() => {
                 let filtered = tasks.filter(task => {
                     // V2.12.1.1: More robust completion zone check
-                    // Handle undefined, null, and true all as "should hide"
+                    // V2.12.2.11: Removed excessive logging (was causing 4000+ logs per session!)
                     if (task.inCompletionZone === true) {
-                        console.log('🏆 Filtering out completion zone task:', task.text);
                         return false;
                     }
                     
@@ -5937,16 +5936,21 @@
                 const searchInputRef = useRef(null);  // V2.12.2.10: Search input ref
                 const lastSearchFocusTimeRef = useRef(0);  // V2.12.2.10: Track when search was last focused
                 
-                // V2.12.2.10: CRITICAL FIX - Only restore search focus if user was RECENTLY typing in search!
-                // This prevents restoration during drag, modal open, subtask expand, etc.
+                // V2.12.2.11: Smart focus restoration - TWO conditions:
+                // 1. Restore if search was used RECENTLY (< 2 seconds)
+                // 2. OR restore if search field HAS TEXT (user actively searching)
                 useEffect(() => {
                     console.log('🔍 [SEARCH useEffect] searchQuery changed to:', searchQuery);
                     
-                    // CRITICAL: Check if search was focused RECENTLY (within 2 seconds)
                     const timeSinceLastFocus = Date.now() - lastSearchFocusTimeRef.current;
-                    if (timeSinceLastFocus > 2000) {
-                        console.log('⛔ [SEARCH] BLOCKED: Search not recently focused (', timeSinceLastFocus, 'ms ago)');
-                        return;  // User moved on to other interactions!
+                    const hasSearchText = searchQuery && searchQuery.trim() !== '';
+                    
+                    // V2.12.2.11: Smart check - TWO ways to restore:
+                    // 1. Search was used recently (< 2 seconds)
+                    // 2. Search field has text (user actively searching)
+                    if (timeSinceLastFocus > 2000 && !hasSearchText) {
+                        console.log('⛔ [SEARCH] BLOCKED: Not recent (', timeSinceLastFocus, 'ms) AND no text');
+                        return;
                     }
                     
                     // Check if user is currently typing in task field
@@ -5957,7 +5961,11 @@
                     }
                     
                     if (searchInputRef.current) {
-                        console.log('🔍 Restoring search focus (was focused', timeSinceLastFocus, 'ms ago)');
+                        if (hasSearchText) {
+                            console.log('🔍 Restoring search focus (has text:', searchQuery, ')');
+                        } else {
+                            console.log('🔍 Restoring search focus (was focused', timeSinceLastFocus, 'ms ago)');
+                        }
                         // Small delay to ensure re-render completes
                         setTimeout(() => {
                             // Check AGAIN before actually focusing
@@ -6040,6 +6048,10 @@
                                             }
                                         }}
                                         onChange={(e) => {
+                                            // V2.12.2.11: Update timestamp on EVERY keystroke!
+                                            // This extends the timer with each letter typed
+                                            lastSearchFocusTimeRef.current = Date.now();
+                                            
                                             // V2.12.2.4: UNCONTROLLED input - no setState!
                                             // Just debounce the parent searchQuery update
                                             const value = e.target.value;
@@ -9550,8 +9562,8 @@
                             <div className="text-center mb-8">
                                 <Target className="text-indigo-600 mx-auto mb-4" size={48} />
                                 <h1 className="text-3xl font-bold text-gray-900 mb-2">Life Ninja</h1>
-                                <p className="text-xl font-bold text-indigo-600 mb-1">V2.12.2.10</p>
-                                <p className="text-gray-600 text-sm">No Screen Jumps - Fixed!</p>
+                                <p className="text-xl font-bold text-indigo-600 mb-1">V2.12.2.11</p>
+                                <p className="text-gray-600 text-sm">Smart Timer + Performance Fix!</p>
                             </div>
                             
                             <div className="mb-6">
@@ -9662,7 +9674,7 @@
                                 <div className="flex items-center gap-3">
                                     <Target className="text-indigo-600" size={32} />
                                     <h1 className="text-2xl font-bold text-gray-900">Life Ninja</h1>
-                                    <span className="text-sm bg-red-600 text-white px-3 py-1 rounded-full font-bold">V2.12.2.10</span>
+                                    <span className="text-sm bg-green-600 text-white px-3 py-1 rounded-full font-bold">V2.12.2.11</span>
                                 </div>
 
                                 <div className="flex items-center gap-4">
