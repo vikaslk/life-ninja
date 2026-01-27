@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Life Ninja V2.12.2.12 - Simple Search</title>
+    <title>Life Ninja V2.12.3 - Performance + Features</title>
     <script src="https://cdn.tailwindcss.com"></script>
     
     <script crossorigin src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
@@ -254,16 +254,18 @@
         };
         
         console.log('═══════════════════════════════════════════════');
-        console.log('🚀 VERSION: V2.12.2.12-SIMPLE-SEARCH-JAN26-1800 🚀');
+        console.log('🚀 VERSION: V2.12.3-PERFORMANCE-FEATURES-JAN26-1900 🚀');
         console.log('');
-        console.log('🎯 COMPLETE REDESIGN:');
-        console.log('✨ Search is now LOCAL STATE (like task field!)');
-        console.log('❌ Removed ALL focus restoration complexity');
-        console.log('✨ Controlled input - simple & clean');
-        console.log('❌ No parent updates = No re-renders = No focus loss!');
-        console.log('✨ ListView filters its own tasks with local searchQuery');
+        console.log('⚡ REORDER PERFORMANCE FIX:');
+        console.log('✅ Only updates 2 swapped tasks (not all!)');
+        console.log('✅ Parallel database updates (not loop!)');
+        console.log('✅ No more avalanche logging');
+        console.log('✅ Scales perfectly with many tasks');
         console.log('');
-        console.log('🎉 Result: ZERO search logs, perfect typing!');
+        console.log('🎯 NEW MOVE TASK FEATURES:');
+        console.log('✅ Move to Project');
+        console.log('✅ Move to Persona');
+        console.log('✅ Move to Date/Time (existing)');
         console.log('═══════════════════════════════════════════════');
         console.log('🖥️ Device detected:', getDeviceId());
         
@@ -2306,15 +2308,21 @@
                 
                 console.log('⬆️ Moving task up:', visibleTasks[currentIndex].text);
                 
+                // Get the two tasks to swap
+                const taskBelow = visibleTasks[currentIndex];
+                const taskAbove = visibleTasks[currentIndex - 1];
+                
                 // Swap with task above
                 [visibleTasks[currentIndex - 1], visibleTasks[currentIndex]] = 
                 [visibleTasks[currentIndex], visibleTasks[currentIndex - 1]];
                 
-                // Reassign manual order
+                // V2.12.3: ONLY update the 2 swapped tasks, not all tasks!
                 const updatedTasks = tasks.map(task => {
-                    const visibleIndex = visibleTasks.findIndex(t => t.id === task.id);
-                    if (visibleIndex !== -1) {
-                        return { ...task, manualOrder: visibleIndex };
+                    if (task.id === taskBelow.id) {
+                        return { ...task, manualOrder: currentIndex - 1 };
+                    }
+                    if (task.id === taskAbove.id) {
+                        return { ...task, manualOrder: currentIndex };
                     }
                     return task;
                 });
@@ -2322,38 +2330,25 @@
                 setTasks(updatedTasks);
                 setIsManualOrder(true);
                 
-                // V2.6.3-FIX: Batch save with single Supabase call to reduce real-time events
-                const tasksToSave = updatedTasks.filter(t => t.manualOrder !== null && t.supabaseId);
-                if (tasksToSave.length > 0 && user) {
-                    // Use a single batch update instead of individual saves
-                    const batchUpdate = async () => {
-                        try {
-                            const updates = tasksToSave.map(task => ({
-                                id: task.supabaseId,
-                                user_id: user.id,
-                                manual_order: task.manualOrder,
-                                last_ordered_device: getDeviceId(),  // V2.10.2: Re-enabled
-                                last_ordered_at: new Date().toISOString()
-                            }));
-                            
-                            // Update all at once using upsert
-                            for (const update of updates) {
-                                await supabase
-                                    .from('tasks')
-                                    .update({
-                                        manual_order: update.manual_order,
-                                        last_ordered_device: update.last_ordered_device,  // V2.10.2: Re-enabled
-                                        last_ordered_at: update.last_ordered_at
-                                    })
-                                    .eq('id', update.id)
-                                    .eq('user_id', user.id);
-                            }
-                        } catch (error) {
-                            console.error('❌ Batch save error:', error);
-                        }
-                    };
+                // V2.12.3: ONLY save the 2 swapped tasks to database!
+                if (user && taskBelow.supabaseId && taskAbove.supabaseId) {
+                    const updates = [
+                        { id: taskBelow.supabaseId, manual_order: currentIndex - 1 },
+                        { id: taskAbove.supabaseId, manual_order: currentIndex }
+                    ];
                     
-                    batchUpdate();
+                    // Update both in parallel (not loop!)
+                    Promise.all(updates.map(update =>
+                        supabase
+                            .from('tasks')
+                            .update({
+                                manual_order: update.manual_order,
+                                last_ordered_device: getDeviceId(),
+                                last_ordered_at: new Date().toISOString()
+                            })
+                            .eq('id', update.id)
+                            .eq('user_id', user.id)
+                    )).catch(error => console.error('❌ Update error:', error));
                 }
                 
                 showToast('Task moved up', false);
@@ -2368,15 +2363,21 @@
                 
                 console.log('⬇️ Moving task down:', visibleTasks[currentIndex].text);
                 
+                // Get the two tasks to swap
+                const taskAbove = visibleTasks[currentIndex];
+                const taskBelow = visibleTasks[currentIndex + 1];
+                
                 // Swap with task below
                 [visibleTasks[currentIndex], visibleTasks[currentIndex + 1]] = 
                 [visibleTasks[currentIndex + 1], visibleTasks[currentIndex]];
                 
-                // Reassign manual order
+                // V2.12.3: ONLY update the 2 swapped tasks, not all tasks!
                 const updatedTasks = tasks.map(task => {
-                    const visibleIndex = visibleTasks.findIndex(t => t.id === task.id);
-                    if (visibleIndex !== -1) {
-                        return { ...task, manualOrder: visibleIndex };
+                    if (task.id === taskAbove.id) {
+                        return { ...task, manualOrder: currentIndex + 1 };
+                    }
+                    if (task.id === taskBelow.id) {
+                        return { ...task, manualOrder: currentIndex };
                     }
                     return task;
                 });
@@ -2384,38 +2385,25 @@
                 setTasks(updatedTasks);
                 setIsManualOrder(true);
                 
-                // V2.6.3-FIX: Batch save with single Supabase call to reduce real-time events
-                const tasksToSave = updatedTasks.filter(t => t.manualOrder !== null && t.supabaseId);
-                if (tasksToSave.length > 0 && user) {
-                    // Use a single batch update instead of individual saves
-                    const batchUpdate = async () => {
-                        try {
-                            const updates = tasksToSave.map(task => ({
-                                id: task.supabaseId,
-                                user_id: user.id,
-                                manual_order: task.manualOrder,
-                                last_ordered_device: getDeviceId(),  // V2.10.2: Re-enabled
-                                last_ordered_at: new Date().toISOString()
-                            }));
-                            
-                            // Update all at once
-                            for (const update of updates) {
-                                await supabase
-                                    .from('tasks')
-                                    .update({
-                                        manual_order: update.manual_order,
-                                        last_ordered_device: update.last_ordered_device,  // V2.10.2: Re-enabled
-                                        last_ordered_at: update.last_ordered_at
-                                    })
-                                    .eq('id', update.id)
-                                    .eq('user_id', user.id);
-                            }
-                        } catch (error) {
-                            console.error('❌ Batch save error:', error);
-                        }
-                    };
+                // V2.12.3: ONLY save the 2 swapped tasks to database!
+                if (user && taskAbove.supabaseId && taskBelow.supabaseId) {
+                    const updates = [
+                        { id: taskAbove.supabaseId, manual_order: currentIndex + 1 },
+                        { id: taskBelow.supabaseId, manual_order: currentIndex }
+                    ];
                     
-                    batchUpdate();
+                    // Update both in parallel (not loop!)
+                    Promise.all(updates.map(update =>
+                        supabase
+                            .from('tasks')
+                            .update({
+                                manual_order: update.manual_order,
+                                last_ordered_device: getDeviceId(),
+                                last_ordered_at: new Date().toISOString()
+                            })
+                            .eq('id', update.id)
+                            .eq('user_id', user.id)
+                    )).catch(error => console.error('❌ Update error:', error));
                 }
                 
                 showToast('Task moved down', false);
@@ -9560,8 +9548,8 @@
                             <div className="text-center mb-8">
                                 <Target className="text-indigo-600 mx-auto mb-4" size={48} />
                                 <h1 className="text-3xl font-bold text-gray-900 mb-2">Life Ninja</h1>
-                                <p className="text-xl font-bold text-indigo-600 mb-1">V2.12.2.12</p>
-                                <p className="text-gray-600 text-sm">Simple Search - Complete Redesign!</p>
+                                <p className="text-xl font-bold text-indigo-600 mb-1">V2.12.3</p>
+                                <p className="text-gray-600 text-sm">Performance + Features!</p>
                             </div>
                             
                             <div className="mb-6">
@@ -9672,7 +9660,7 @@
                                 <div className="flex items-center gap-3">
                                     <Target className="text-indigo-600" size={32} />
                                     <h1 className="text-2xl font-bold text-gray-900">Life Ninja</h1>
-                                    <span className="text-sm bg-purple-600 text-white px-3 py-1 rounded-full font-bold">V2.12.2.12</span>
+                                    <span className="text-sm bg-orange-600 text-white px-3 py-1 rounded-full font-bold">V2.12.3</span>
                                 </div>
 
                                 <div className="flex items-center gap-4">
@@ -10514,13 +10502,38 @@
                                     const formData = new FormData(e.target);
                                     const newDate = formData.get('date');
                                     const newSlot = formData.get('timeSlot');
+                                    const newProject = formData.get('project');
+                                    const newPersona = formData.get('persona');
                                     
-                                    if (newDate) {
-                                        updateTask(taskToMove.id, { 
-                                            scheduledDate: newDate,
-                                            timeSlot: newSlot || taskToMove.timeSlot
-                                        });
-                                        showToast(`Task moved to ${newDate}${newSlot ? ' at ' + newSlot : ''}`, true);
+                                    // V2.12.3: Build updates object with all changes
+                                    const updates = {};
+                                    if (newDate && newDate !== taskToMove.scheduledDate) {
+                                        updates.scheduledDate = newDate;
+                                    }
+                                    if (newSlot !== taskToMove.timeSlot) {
+                                        updates.timeSlot = newSlot || null;
+                                    }
+                                    if (newProject !== taskToMove.project) {
+                                        updates.project = newProject;
+                                    }
+                                    if (newPersona !== taskToMove.persona) {
+                                        updates.persona = newPersona;
+                                    }
+                                    
+                                    if (Object.keys(updates).length > 0) {
+                                        updateTask(taskToMove.id, updates);
+                                        
+                                        // V2.12.3: Build descriptive toast message
+                                        const messages = [];
+                                        if (updates.scheduledDate) messages.push(`date: ${updates.scheduledDate}`);
+                                        if (updates.timeSlot) messages.push(`time: ${updates.timeSlot}`);
+                                        if (updates.project) messages.push(`project: ${updates.project}`);
+                                        if (updates.persona) messages.push(`persona: ${updates.persona}`);
+                                        
+                                        showToast(`Task moved (${messages.join(', ')})`, true);
+                                        setShowTaskMover(false);
+                                        setTaskToMove(null);
+                                    } else {
                                         setShowTaskMover(false);
                                         setTaskToMove(null);
                                     }
@@ -10533,7 +10546,6 @@
                                                 name="date"
                                                 defaultValue={taskToMove.scheduledDate || formatDate(new Date())}
                                                 className="w-full px-3 py-2 border rounded-lg"
-                                                required
                                             />
                                         </div>
                                         
@@ -10551,6 +10563,36 @@
                                                     const time = `${String(hour).padStart(2, '0')}:${String(minute).padStart(2, '0')}`;
                                                     return <option key={time} value={time}>{time}</option>;
                                                 })}
+                                            </select>
+                                        </div>
+                                        
+                                        {/* V2.12.3: NEW - Move to Project */}
+                                        <div>
+                                            <label className="block text-sm font-semibold mb-1">Move to Project</label>
+                                            <select
+                                                name="project"
+                                                defaultValue={taskToMove.project || ''}
+                                                className="w-full px-3 py-2 border rounded-lg"
+                                            >
+                                                <option value="">No Project</option>
+                                                {projects.filter(p => !p.isNoProject).map(project => (
+                                                    <option key={project.id} value={project.id}>{project.name}</option>
+                                                ))}
+                                            </select>
+                                        </div>
+                                        
+                                        {/* V2.12.3: NEW - Move to Persona */}
+                                        <div>
+                                            <label className="block text-sm font-semibold mb-1">Move to Persona</label>
+                                            <select
+                                                name="persona"
+                                                defaultValue={taskToMove.persona || ''}
+                                                className="w-full px-3 py-2 border rounded-lg"
+                                            >
+                                                <option value="">No Persona</option>
+                                                {personas.map(persona => (
+                                                    <option key={persona} value={persona}>{persona}</option>
+                                                ))}
                                             </select>
                                         </div>
                                     </div>
