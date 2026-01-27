@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Life Ninja V2.12.2.8 - Mutual Respect</title>
+    <title>Life Ninja V2.12.2.9 - Smart Clear</title>
     <script src="https://cdn.tailwindcss.com"></script>
     
     <script crossorigin src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
@@ -254,18 +254,16 @@
         };
         
         console.log('═══════════════════════════════════════════════');
-        console.log('🚀 VERSION: V2.12.2.8-MUTUAL-RESPECT-JAN26-0630 🚀');
+        console.log('🚀 VERSION: V2.12.2.9-SMART-CLEAR-JAN26-0700 🚀');
         console.log('');
-        console.log('✨ THE COMPLETE FIX:');
-        console.log('🔍 Search useEffect: Checks if user in task field first');
-        console.log('📝 Task useEffect: Checks if user in search first');
-        console.log('🧹 Clear task text when focusing search');
-        console.log('❌ Removed aggressive setTimeout chains');
-        console.log('🤝 Both fields respect each other!');
+        console.log('✨ REFINEMENT:');
+        console.log('📝 Preserve task text if user is actively editing');
+        console.log('🧹 Only clear if field is already empty');
+        console.log('🤝 Maintains mutual respect between fields');
         console.log('');
-        console.log('🔍 Watch for:');
-        console.log('  ⛔ [SEARCH] BLOCKED: User typing in task field');
-        console.log('  ⛔ [TASK] BLOCKED: User typing in search');
+        console.log('🔍 New logs:');
+        console.log('  📝 Task field has text - preserving active edit');
+        console.log('  🧹 Task field empty - clearing ref');
         console.log('═══════════════════════════════════════════════');
         console.log('🖥️ Device detected:', getDeviceId());
         
@@ -6018,13 +6016,20 @@
                                         placeholder="Search tasks..."
                                         defaultValue={searchQuery}
                                         onFocus={() => {
-                                            // V2.12.2.8: Disable rapid entry AND clear task text to prevent reappearing
-                                            console.log('🔍 Search focused - disabling rapid entry & clearing task text');
+                                            // V2.12.2.9: Smart clearing - preserve active edits!
+                                            console.log('🔍 Search focused - disabling rapid entry');
                                             isCreatingTasksRef.current = false;
                                             
-                                            // V2.12.2.8: Clear task text to prevent it from reappearing later
-                                            setNewTaskText('');
-                                            newTaskTextRef.current = '';
+                                            // V2.12.2.9: Only clear if task field is EMPTY
+                                            // If field has text, user is actively editing - preserve it!
+                                            // If field is empty, clear ref to prevent old text reappearing
+                                            if (!newTaskText || newTaskText.trim() === '') {
+                                                console.log('🧹 Task field empty - clearing ref to prevent reappearing text');
+                                                setNewTaskText('');
+                                                newTaskTextRef.current = '';
+                                            } else {
+                                                console.log('📝 Task field has text - preserving active edit');
+                                            }
                                         }}
                                         onChange={(e) => {
                                             // V2.12.2.4: UNCONTROLLED input - no setState!
@@ -9537,8 +9542,8 @@
                             <div className="text-center mb-8">
                                 <Target className="text-indigo-600 mx-auto mb-4" size={48} />
                                 <h1 className="text-3xl font-bold text-gray-900 mb-2">Life Ninja</h1>
-                                <p className="text-xl font-bold text-indigo-600 mb-1">V2.12.2.8</p>
-                                <p className="text-gray-600 text-sm">Mutual Respect - Both Fields Work!</p>
+                                <p className="text-xl font-bold text-indigo-600 mb-1">V2.12.2.9</p>
+                                <p className="text-gray-600 text-sm">Smart Clear - Preserves Your Edits!</p>
                             </div>
                             
                             <div className="mb-6">
@@ -9649,7 +9654,7 @@
                                 <div className="flex items-center gap-3">
                                     <Target className="text-indigo-600" size={32} />
                                     <h1 className="text-2xl font-bold text-gray-900">Life Ninja</h1>
-                                    <span className="text-sm bg-green-600 text-white px-3 py-1 rounded-full font-bold">V2.12.2.8</span>
+                                    <span className="text-sm bg-blue-600 text-white px-3 py-1 rounded-full font-bold">V2.12.2.9</span>
                                 </div>
 
                                 <div className="flex items-center gap-4">
