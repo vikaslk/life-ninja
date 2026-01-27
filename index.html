@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Life Ninja V2.12.2.6 - Prop Fix</title>
+    <title>Life Ninja V2.12.2.7 - Timing Fix</title>
     <script src="https://cdn.tailwindcss.com"></script>
     
     <script crossorigin src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
@@ -254,17 +254,17 @@
         };
         
         console.log('═══════════════════════════════════════════════');
-        console.log('🚀 VERSION: V2.12.2.6-PROP-FIX-JAN25-2130 🚀');
+        console.log('🚀 VERSION: V2.12.2.7-TIMING-FIX-JAN26-0600 🚀');
         console.log('');
-        console.log('🐛 CRITICAL FIX:');
-        console.log('✅ searchQuery now passed as PROP to ListView');
-        console.log('✅ React.memo can see the change');
-        console.log('✅ useEffect WILL run now!');
+        console.log('🐛 THE BUG:');
+        console.log('❌ onBlur fired BEFORE useEffect could restore focus!');
+        console.log('✅ Removed onBlur - always restore when searchQuery changes');
+        console.log('📊 Added extensive logging to debug');
         console.log('');
-        console.log('🔍 Look for:');
-        console.log('  🔍 Search focused (when you click)');
-        console.log('  🔍 Updating search query (after typing pauses)');
-        console.log('  🔍 Restoring search focus (THIS TIME FOR REAL!)');
+        console.log('🔍 Look for these logs:');
+        console.log('  🔍 [useEffect] searchQuery changed');
+        console.log('  🔍 Restoring search focus');
+        console.log('  🔍 Actually calling .focus() now');
         console.log('═══════════════════════════════════════════════');
         console.log('🖥️ Device detected:', getDeviceId());
         
@@ -5935,22 +5935,25 @@
                 const [newTaskText, setNewTaskText] = useState(() => newTaskTextRef.current || '');
                 const searchTimeoutRef = useRef(null);
                 const newTaskInputRef = useRef(null);
-                const searchInputRef = useRef(null);  // V2.12.2.6: Search input ref
-                const wasSearchFocusedRef = useRef(false);  // V2.12.2.6: Track if actively searching
+                const searchInputRef = useRef(null);  // V2.12.2.7: Search input ref
                 
-                // V2.12.2.6: Restore focus when searchQuery prop changes (parent updates)
+                // V2.12.2.7: Always restore focus when searchQuery changes
+                // searchQuery only changes when user is typing in search, so safe to always restore
                 useEffect(() => {
-                    // Only restore if user was actively searching
-                    if (wasSearchFocusedRef.current && searchInputRef.current) {
+                    console.log('🔍 [useEffect] searchQuery changed to:', searchQuery);
+                    if (searchInputRef.current) {
                         console.log('🔍 Restoring search focus after query update');
                         // Small delay to ensure re-render completes
                         setTimeout(() => {
-                            if (searchInputRef.current && wasSearchFocusedRef.current) {
+                            if (searchInputRef.current) {
+                                console.log('🔍 Actually calling .focus() now');
                                 searchInputRef.current.focus();
                             }
                         }, 10);
+                    } else {
+                        console.log('❌ searchInputRef.current is null!');
                     }
-                }, [searchQuery]); // Now runs when searchQuery PROP changes!
+                }, [searchQuery]); // Runs when searchQuery PROP changes
                 
                 // V2.6.3-AGGRESSIVE: Refocus input whenever tasks change during rapid entry
                 // V2.12.1.6: CHECK ACTIVE ELEMENT - Never steal from other inputs!
@@ -6002,14 +6005,9 @@
                                         placeholder="Search tasks..."
                                         defaultValue={searchQuery}
                                         onFocus={() => {
-                                            // V2.12.2.5: Track that user is actively searching
+                                            // V2.12.2.7: Just disable rapid entry - no tracking needed
                                             console.log('🔍 Search focused - disabling rapid entry');
                                             isCreatingTasksRef.current = false;
-                                            wasSearchFocusedRef.current = true;
-                                        }}
-                                        onBlur={() => {
-                                            // V2.12.2.5: User left search field
-                                            wasSearchFocusedRef.current = false;
                                         }}
                                         onChange={(e) => {
                                             // V2.12.2.4: UNCONTROLLED input - no setState!
@@ -9522,8 +9520,8 @@
                             <div className="text-center mb-8">
                                 <Target className="text-indigo-600 mx-auto mb-4" size={48} />
                                 <h1 className="text-3xl font-bold text-gray-900 mb-2">Life Ninja</h1>
-                                <p className="text-xl font-bold text-indigo-600 mb-1">V2.12.2.6</p>
-                                <p className="text-gray-600 text-sm">Prop Fix - useEffect WILL Run!</p>
+                                <p className="text-xl font-bold text-indigo-600 mb-1">V2.12.2.7</p>
+                                <p className="text-gray-600 text-sm">Timing Fix - onBlur Was The Bug!</p>
                             </div>
                             
                             <div className="mb-6">
@@ -9634,7 +9632,7 @@
                                 <div className="flex items-center gap-3">
                                     <Target className="text-indigo-600" size={32} />
                                     <h1 className="text-2xl font-bold text-gray-900">Life Ninja</h1>
-                                    <span className="text-sm bg-blue-600 text-white px-3 py-1 rounded-full font-bold">V2.12.2.6</span>
+                                    <span className="text-sm bg-red-600 text-white px-3 py-1 rounded-full font-bold">V2.12.2.7</span>
                                 </div>
 
                                 <div className="flex items-center gap-4">
