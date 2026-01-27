@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Life Ninja V2.12.2.9 - Smart Clear</title>
+    <title>Life Ninja V2.12.2.10 - No Screen Jumps</title>
     <script src="https://cdn.tailwindcss.com"></script>
     
     <script crossorigin src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
@@ -254,16 +254,16 @@
         };
         
         console.log('═══════════════════════════════════════════════');
-        console.log('🚀 VERSION: V2.12.2.9-SMART-CLEAR-JAN26-0700 🚀');
+        console.log('🚀 VERSION: V2.12.2.10-NO-SCREEN-JUMPS-JAN26-1700 🚀');
         console.log('');
-        console.log('✨ REFINEMENT:');
-        console.log('📝 Preserve task text if user is actively editing');
-        console.log('🧹 Only clear if field is already empty');
-        console.log('🤝 Maintains mutual respect between fields');
+        console.log('🐛 CRITICAL FIX:');
+        console.log('❌ Search focus was restoring during drag, modal, subtask expand');
+        console.log('✅ Now only restores if search focused within last 2 seconds');
+        console.log('✅ Prevents screen jumps during other interactions');
         console.log('');
-        console.log('🔍 New logs:');
-        console.log('  📝 Task field has text - preserving active edit');
-        console.log('  🧹 Task field empty - clearing ref');
+        console.log('🔍 New behavior:');
+        console.log('  ⛔ [SEARCH] BLOCKED: Search not recently focused');
+        console.log('  🔍 Restoring search focus (was focused X ms ago)');
         console.log('═══════════════════════════════════════════════');
         console.log('🖥️ Device detected:', getDeviceId());
         
@@ -5934,11 +5934,20 @@
                 const [newTaskText, setNewTaskText] = useState(() => newTaskTextRef.current || '');
                 const searchTimeoutRef = useRef(null);
                 const newTaskInputRef = useRef(null);
-                const searchInputRef = useRef(null);  // V2.12.2.7: Search input ref
+                const searchInputRef = useRef(null);  // V2.12.2.10: Search input ref
+                const lastSearchFocusTimeRef = useRef(0);  // V2.12.2.10: Track when search was last focused
                 
-                // V2.12.2.8: Smart search focus restoration - NEVER steal from task field!
+                // V2.12.2.10: CRITICAL FIX - Only restore search focus if user was RECENTLY typing in search!
+                // This prevents restoration during drag, modal open, subtask expand, etc.
                 useEffect(() => {
                     console.log('🔍 [SEARCH useEffect] searchQuery changed to:', searchQuery);
+                    
+                    // CRITICAL: Check if search was focused RECENTLY (within 2 seconds)
+                    const timeSinceLastFocus = Date.now() - lastSearchFocusTimeRef.current;
+                    if (timeSinceLastFocus > 2000) {
+                        console.log('⛔ [SEARCH] BLOCKED: Search not recently focused (', timeSinceLastFocus, 'ms ago)');
+                        return;  // User moved on to other interactions!
+                    }
                     
                     // Check if user is currently typing in task field
                     const activeEl = document.activeElement;
@@ -5948,10 +5957,10 @@
                     }
                     
                     if (searchInputRef.current) {
-                        console.log('🔍 Restoring search focus after query update');
+                        console.log('🔍 Restoring search focus (was focused', timeSinceLastFocus, 'ms ago)');
                         // Small delay to ensure re-render completes
                         setTimeout(() => {
-                            // Check AGAIN before actually focusing (things could have changed)
+                            // Check AGAIN before actually focusing
                             const currentActive = document.activeElement;
                             if (currentActive === newTaskInputRef.current) {
                                 console.log('⛔ [SEARCH] BLOCKED in setTimeout: User now in task field');
@@ -6016,13 +6025,12 @@
                                         placeholder="Search tasks..."
                                         defaultValue={searchQuery}
                                         onFocus={() => {
-                                            // V2.12.2.9: Smart clearing - preserve active edits!
-                                            console.log('🔍 Search focused - disabling rapid entry');
+                                            // V2.12.2.10: Record timestamp - user is ACTIVELY using search!
+                                            lastSearchFocusTimeRef.current = Date.now();
+                                            console.log('🔍 Search focused - timestamp recorded, disabling rapid entry');
                                             isCreatingTasksRef.current = false;
                                             
                                             // V2.12.2.9: Only clear if task field is EMPTY
-                                            // If field has text, user is actively editing - preserve it!
-                                            // If field is empty, clear ref to prevent old text reappearing
                                             if (!newTaskText || newTaskText.trim() === '') {
                                                 console.log('🧹 Task field empty - clearing ref to prevent reappearing text');
                                                 setNewTaskText('');
@@ -9542,8 +9550,8 @@
                             <div className="text-center mb-8">
                                 <Target className="text-indigo-600 mx-auto mb-4" size={48} />
                                 <h1 className="text-3xl font-bold text-gray-900 mb-2">Life Ninja</h1>
-                                <p className="text-xl font-bold text-indigo-600 mb-1">V2.12.2.9</p>
-                                <p className="text-gray-600 text-sm">Smart Clear - Preserves Your Edits!</p>
+                                <p className="text-xl font-bold text-indigo-600 mb-1">V2.12.2.10</p>
+                                <p className="text-gray-600 text-sm">No Screen Jumps - Fixed!</p>
                             </div>
                             
                             <div className="mb-6">
@@ -9654,7 +9662,7 @@
                                 <div className="flex items-center gap-3">
                                     <Target className="text-indigo-600" size={32} />
                                     <h1 className="text-2xl font-bold text-gray-900">Life Ninja</h1>
-                                    <span className="text-sm bg-blue-600 text-white px-3 py-1 rounded-full font-bold">V2.12.2.9</span>
+                                    <span className="text-sm bg-red-600 text-white px-3 py-1 rounded-full font-bold">V2.12.2.10</span>
                                 </div>
 
                                 <div className="flex items-center gap-4">
