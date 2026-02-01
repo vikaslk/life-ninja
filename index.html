@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Life Ninja V2.12.5 - Projects & Personas Sync</title>
+    <title>Life Ninja V2.12.6 - Custom Status Sync</title>
     <script src="https://cdn.tailwindcss.com"></script>
     
     <script crossorigin src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
@@ -254,19 +254,19 @@
         };
         
         console.log('═══════════════════════════════════════════════');
-        console.log('🚀 VERSION: V2.12.5-PROJECTS-PERSONAS-SYNC-JAN27-1800 🚀');
+        console.log('🚀 VERSION: V2.12.6-CUSTOM-STATUS-FIX-JAN27-2000 🚀');
         console.log('');
-        console.log('🎯 TOP PRIORITY FIXES:');
-        console.log('📂 Projects now sync across devices!');
-        console.log('   - Load from Supabase');
-        console.log('   - Save new projects to Supabase');
-        console.log('   - Real-time sync active');
-        console.log('   - Auto-migrate from localStorage');
+        console.log('🔧 CRITICAL FIXES:');
+        console.log('✅ Custom statuses now sync to Supabase!');
+        console.log('   - Add status → Saves to Supabase');
+        console.log('   - Remove status → Saves to Supabase');
+        console.log('   - Reorder statuses → Saves to Supabase');
+        console.log('   - Real-time updates both devices!');
         console.log('');
-        console.log('👤 Personas now sync across devices!');
-        console.log('   - Load from Supabase settings');
-        console.log('   - Auto-migrate from localStorage');
+        console.log('✅ Personas error fixed (localStorage for now)');
+        console.log('✅ Loading screen version updated');
         console.log('');
+        console.log('📂 Projects sync working (V2.12.5)');
         console.log('✅ Duration field fix (V2.12.4)');
         console.log('═══════════════════════════════════════════════');
         console.log('🖥️ Device detected:', getDeviceId());
@@ -2119,74 +2119,31 @@
                 loadProjects();
             }, [user]);
             
-            // V2.12.5: Load personas from Supabase settings
+            // V2.12.6: Personas - Keep in localStorage for now (Supabase column doesn't exist yet)
+            // TODO V2.13: Add personas column to settings table, then enable sync
             useEffect(() => {
                 if (!user) return;
                 
-                const loadPersonas = async () => {
+                // Load from localStorage
+                const localPersonas = localStorage.getItem('ln_personas');
+                if (localPersonas) {
                     try {
-                        console.log('🔄 Loading personas from Supabase settings');
-                        
-                        // Check localStorage for migration
-                        const localPersonas = localStorage.getItem('ln_personas');
-                        let needsMigration = false;
-                        let personasToMigrate = [];
-                        
-                        if (localPersonas) {
-                            try {
-                                personasToMigrate = JSON.parse(localPersonas);
-                                needsMigration = personasToMigrate.length > 0;
-                                console.log(`📦 Found ${personasToMigrate.length} personas in localStorage`);
-                            } catch (e) {
-                                console.error('Error parsing localStorage personas:', e);
-                            }
-                        }
-                        
-                        // Load from Supabase settings
-                        const { data, error } = await supabase
-                            .from('settings')
-                            .select('personas')
-                            .eq('user_id', user.id)
-                            .maybeSingle();
-                        
-                        if (error) throw error;
-                        
-                        console.log('✅ Loaded personas from Supabase');
-                        
-                        // MIGRATION: If localStorage has personas but Supabase doesn't, migrate!
-                        if (needsMigration && (!data || !data.personas || data.personas.length === 0)) {
-                            console.log('🔄 MIGRATING personas from localStorage to Supabase...');
-                            
-                            const { error: upsertError } = await supabase
-                                .from('settings')
-                                .upsert({
-                                    user_id: user.id,
-                                    personas: personasToMigrate
-                                }, {
-                                    onConflict: 'user_id'
-                                });
-                            
-                            if (upsertError) {
-                                console.error('❌ Failed to migrate personas:', upsertError);
-                            } else {
-                                console.log(`✅ Migrated ${personasToMigrate.length} personas:`, personasToMigrate);
-                                setPersonas(personasToMigrate);
-                                showToast(`Migrated ${personasToMigrate.length} personas to cloud!`, true);
-                            }
-                        } else if (data && data.personas && data.personas.length > 0) {
-                            setPersonas(data.personas);
-                        }
-                        
-                        console.log('✅ Personas sync complete');
-                        
-                    } catch (error) {
-                        console.error('❌ Error loading personas:', error);
-                        showToast('Error loading personas', false);
+                        const parsed = JSON.parse(localPersonas);
+                        console.log(`👤 Loaded ${parsed.length} personas from localStorage`);
+                        setPersonas(parsed);
+                    } catch (e) {
+                        console.error('Error parsing localStorage personas:', e);
                     }
-                };
-                
-                loadPersonas();
+                }
             }, [user]);
+            
+            // V2.12.6: Save personas to localStorage when they change
+            useEffect(() => {
+                if (user && personas.length > 0) {
+                    localStorage.setItem('ln_personas', JSON.stringify(personas));
+                    console.log('💾 Saved personas to localStorage');
+                }
+            }, [personas, user]);
             
             const [customLists, setCustomLists] = useStickyState([], 'ln_customLists');
 
@@ -2639,6 +2596,28 @@
                 }
                 
                 showToast('Task deleted', true);
+            };
+            
+            // V2.12.6: Helper function to update project in Supabase
+            const updateProjectInSupabase = async (projectId, updates) => {
+                if (!user) return;
+                
+                try {
+                    const { error } = await supabase
+                        .from('projects')
+                        .update({
+                            ...updates,
+                            updated_at: new Date().toISOString()
+                        })
+                        .eq('id', projectId)
+                        .eq('user_id', user.id);
+                    
+                    if (error) throw error;
+                    
+                    console.log('✅ Project updated in Supabase:', projectId);
+                } catch (error) {
+                    console.error('❌ Error updating project in Supabase:', error);
+                }
             };
 
             const duplicateTask = async (taskId) => {
@@ -8697,6 +8676,8 @@
                                                                 setProjects(prev => prev.map(p => 
                                                                     p.id === project.id ? {...p, statuses: newStatuses} : p
                                                                 ));
+                                                                // V2.12.6: Save to Supabase
+                                                                updateProjectInSupabase(project.id, { statuses: newStatuses });
                                                             }
                                                         }}
                                                     >
@@ -8708,6 +8689,8 @@
                                                                     setProjects(prev => prev.map(p => 
                                                                         p.id === project.id ? {...p, statuses: newStatuses} : p
                                                                     ));
+                                                                    // V2.12.6: Save to Supabase
+                                                                    updateProjectInSupabase(project.id, { statuses: newStatuses });
                                                                 }}
                                                                 className="text-red-600 hover:text-red-800"
                                                             >
@@ -8727,11 +8710,14 @@
                                                     onKeyPress={(e) => {
                                                         if (e.key === 'Enter' && newStatusName.trim()) {
                                                             const statusId = newStatusName.toLowerCase().replace(/\s+/g, '-');
+                                                            const newStatuses = [...projectStatuses, statusId];
                                                             setProjects(prev => prev.map(p =>
                                                                 p.id === project.id 
-                                                                    ? {...p, statuses: [...projectStatuses, statusId]}
+                                                                    ? {...p, statuses: newStatuses}
                                                                     : p
                                                             ));
+                                                            // V2.12.6: Save to Supabase
+                                                            updateProjectInSupabase(project.id, { statuses: newStatuses });
                                                             setNewStatusName('');
                                                         }
                                                     }}
@@ -8740,11 +8726,14 @@
                                                     onClick={() => {
                                                         if (newStatusName.trim()) {
                                                             const statusId = newStatusName.toLowerCase().replace(/\s+/g, '-');
+                                                            const newStatuses = [...projectStatuses, statusId];
                                                             setProjects(prev => prev.map(p =>
                                                                 p.id === project.id 
-                                                                    ? {...p, statuses: [...projectStatuses, statusId]}
+                                                                    ? {...p, statuses: newStatuses}
                                                                     : p
                                                             ));
+                                                            // V2.12.6: Save to Supabase
+                                                            updateProjectInSupabase(project.id, { statuses: newStatuses });
                                                             setNewStatusName('');
                                                         }
                                                     }}
@@ -9762,7 +9751,7 @@
                         <div className="text-center">
                             <div className="animate-spin rounded-full h-16 w-16 border-b-4 border-indigo-600 mx-auto mb-4"></div>
                             <p className="text-gray-600">Loading Life Ninja...</p>
-                            <p className="text-gray-400 text-sm mt-2">V2.11.6</p>
+                            <p className="text-gray-400 text-sm mt-2">V2.12.6</p>
                         </div>
                     </div>
                 );
@@ -9776,8 +9765,8 @@
                             <div className="text-center mb-8">
                                 <Target className="text-indigo-600 mx-auto mb-4" size={48} />
                                 <h1 className="text-3xl font-bold text-gray-900 mb-2">Life Ninja</h1>
-                                <p className="text-xl font-bold text-indigo-600 mb-1">V2.12.5</p>
-                                <p className="text-gray-600 text-sm">Projects & Personas Sync!</p>
+                                <p className="text-xl font-bold text-indigo-600 mb-1">V2.12.6</p>
+                                <p className="text-gray-600 text-sm">Custom Status Sync!</p>
                             </div>
                             
                             <div className="mb-6">
@@ -9888,7 +9877,7 @@
                                 <div className="flex items-center gap-3">
                                     <Target className="text-indigo-600" size={32} />
                                     <h1 className="text-2xl font-bold text-gray-900">Life Ninja</h1>
-                                    <span className="text-sm bg-green-600 text-white px-3 py-1 rounded-full font-bold">V2.12.5</span>
+                                    <span className="text-sm bg-blue-600 text-white px-3 py-1 rounded-full font-bold">V2.12.6</span>
                                 </div>
 
                                 <div className="flex items-center gap-4">
