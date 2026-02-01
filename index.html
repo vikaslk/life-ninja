@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Life Ninja V2.12.8 - Personas Fix</title>
+    <title>Life Ninja V2.12.9 - Personas Key Fix</title>
     <script src="https://cdn.tailwindcss.com"></script>
     
     <script crossorigin src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
@@ -254,17 +254,16 @@
         };
         
         console.log('═══════════════════════════════════════════════');
-        console.log('🚀 VERSION: V2.12.8-PERSONAS-FIX-JAN27-2130 🚀');
+        console.log('🚀 VERSION: V2.12.9-PERSONAS-KEY-FIX-JAN27-2200 🚀');
         console.log('');
         console.log('🔧 CRITICAL FIX:');
-        console.log('✅ Personas upsert error FIXED!');
-        console.log('   - Added unique constraint on user_id');
-        console.log('   - Personas now save properly to Supabase');
-        console.log('   - Real-time sync working');
+        console.log('✅ Added "key" field to settings upserts!');
+        console.log('   - key = "user_preferences"');
+        console.log('   - Personas now save properly');
+        console.log('   - No more 23502 errors!');
         console.log('');
         console.log('👤 Personas sync (V2.12.7)');
         console.log('✅ Custom statuses sync (V2.12.6)');
-        console.log('✅ Projects sync (V2.12.5)');
         console.log('═══════════════════════════════════════════════');
         console.log('🖥️ Device detected:', getDeviceId());
         
@@ -2197,6 +2196,7 @@
                                 .from('settings')
                                 .upsert({
                                     user_id: user.id,
+                                    key: 'user_preferences',  // V2.12.9: Required field!
                                     personas: personasToMigrate
                                 }, {
                                     onConflict: 'user_id'
@@ -2208,6 +2208,10 @@
                                     console.error('🔧 FIX NEEDED: Run this SQL in Supabase:');
                                     console.error('   ALTER TABLE settings ADD CONSTRAINT settings_user_id_unique UNIQUE (user_id);');
                                     showToast('Personas sync needs database fix - check console', false);
+                                } else if (upsertError.code === '23502') {
+                                    console.error('🔧 FIX: The settings table requires a key field.');
+                                    console.error('   This is now fixed in V2.12.9!');
+                                    showToast('Personas migration failed - check console', false);
                                 } else {
                                     showToast('Error migrating personas', false);
                                 }
@@ -2233,6 +2237,7 @@
                                 .from('settings')
                                 .upsert({
                                     user_id: user.id,
+                                    key: 'user_preferences',  // V2.12.9: Required field!
                                     personas: defaults
                                 }, {
                                     onConflict: 'user_id'
@@ -2271,6 +2276,7 @@
                             .from('settings')
                             .upsert({
                                 user_id: user.id,
+                                key: 'user_preferences',  // V2.12.9: Required field!
                                 personas: personas
                             }, {
                                 onConflict: 'user_id'
@@ -2286,6 +2292,10 @@
                             console.error('🔧 FIX NEEDED: Run this SQL in Supabase:');
                             console.error('   ALTER TABLE settings ADD CONSTRAINT settings_user_id_unique UNIQUE (user_id);');
                             showToast('Personas sync needs database fix - check console', false);
+                        } else if (error.code === '23502') {
+                            console.error('🔧 FIX: The settings table requires a key field.');
+                            console.error('   This is now fixed in V2.12.9!');
+                            showToast('Personas save failed - check console', false);
                         } else {
                             showToast('Error saving personas', false);
                         }
@@ -9901,7 +9911,7 @@
                         <div className="text-center">
                             <div className="animate-spin rounded-full h-16 w-16 border-b-4 border-indigo-600 mx-auto mb-4"></div>
                             <p className="text-gray-600">Loading Life Ninja...</p>
-                            <p className="text-gray-400 text-sm mt-2">V2.12.8</p>
+                            <p className="text-gray-400 text-sm mt-2">V2.12.9</p>
                         </div>
                     </div>
                 );
@@ -9915,8 +9925,8 @@
                             <div className="text-center mb-8">
                                 <Target className="text-indigo-600 mx-auto mb-4" size={48} />
                                 <h1 className="text-3xl font-bold text-gray-900 mb-2">Life Ninja</h1>
-                                <p className="text-xl font-bold text-indigo-600 mb-1">V2.12.8</p>
-                                <p className="text-gray-600 text-sm">Personas Database Fix!</p>
+                                <p className="text-xl font-bold text-indigo-600 mb-1">V2.12.9</p>
+                                <p className="text-gray-600 text-sm">Personas Key Field Fix!</p>
                             </div>
                             
                             <div className="mb-6">
@@ -10027,7 +10037,7 @@
                                 <div className="flex items-center gap-3">
                                     <Target className="text-indigo-600" size={32} />
                                     <h1 className="text-2xl font-bold text-gray-900">Life Ninja</h1>
-                                    <span className="text-sm bg-red-600 text-white px-3 py-1 rounded-full font-bold">V2.12.8</span>
+                                    <span className="text-sm bg-orange-600 text-white px-3 py-1 rounded-full font-bold">V2.12.9</span>
                                 </div>
 
                                 <div className="flex items-center gap-4">
