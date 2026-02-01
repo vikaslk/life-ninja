@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Life Ninja V2.12.3 - Performance + Features</title>
+    <title>Life Ninja V2.12.4 - Duration Fix</title>
     <script src="https://cdn.tailwindcss.com"></script>
     
     <script crossorigin src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
@@ -254,18 +254,19 @@
         };
         
         console.log('═══════════════════════════════════════════════');
-        console.log('🚀 VERSION: V2.12.3-PERFORMANCE-FEATURES-JAN26-1900 🚀');
+        console.log('🚀 VERSION: V2.12.4-DURATION-FIX-JAN27-1100 🚀');
         console.log('');
-        console.log('⚡ REORDER PERFORMANCE FIX:');
-        console.log('✅ Only updates 2 swapped tasks (not all!)');
-        console.log('✅ Parallel database updates (not loop!)');
-        console.log('✅ No more avalanche logging');
-        console.log('✅ Scales perfectly with many tasks');
+        console.log('✅ CRITICAL FIX:');
+        console.log('📝 Duration field can now be edited!');
+        console.log('   - Can delete value');
+        console.log('   - Can type any number');
+        console.log('   - Changes 30→60 works smoothly');
+        console.log('   - Defaults to 30 on save if empty');
         console.log('');
-        console.log('🎯 NEW MOVE TASK FEATURES:');
-        console.log('✅ Move to Project');
-        console.log('✅ Move to Persona');
-        console.log('✅ Move to Date/Time (existing)');
+        console.log('🔍 INVESTIGATING:');
+        console.log('   - Projects/Personas sync issues');
+        console.log('   - List status sync issues');
+        console.log('   - Search lost on drag/touch');
         console.log('═══════════════════════════════════════════════');
         console.log('🖥️ Device detected:', getDeviceId());
         
@@ -9548,8 +9549,8 @@
                             <div className="text-center mb-8">
                                 <Target className="text-indigo-600 mx-auto mb-4" size={48} />
                                 <h1 className="text-3xl font-bold text-gray-900 mb-2">Life Ninja</h1>
-                                <p className="text-xl font-bold text-indigo-600 mb-1">V2.12.3</p>
-                                <p className="text-gray-600 text-sm">Performance + Features!</p>
+                                <p className="text-xl font-bold text-indigo-600 mb-1">V2.12.4</p>
+                                <p className="text-gray-600 text-sm">Duration Fix + Investigating Sync!</p>
                             </div>
                             
                             <div className="mb-6">
@@ -9660,7 +9661,7 @@
                                 <div className="flex items-center gap-3">
                                     <Target className="text-indigo-600" size={32} />
                                     <h1 className="text-2xl font-bold text-gray-900">Life Ninja</h1>
-                                    <span className="text-sm bg-orange-600 text-white px-3 py-1 rounded-full font-bold">V2.12.3</span>
+                                    <span className="text-sm bg-red-600 text-white px-3 py-1 rounded-full font-bold">V2.12.4</span>
                                 </div>
 
                                 <div className="flex items-center gap-4">
@@ -10382,11 +10383,19 @@
                                             <label className="block text-sm font-semibold mb-1">Duration (min)</label>
                                             <input
                                                 type="number"
-                                                value={quickEditTask.estimatedDuration || 30}
-                                                onChange={(e) => setQuickEditTask({...quickEditTask, estimatedDuration: parseInt(e.target.value) || 30})}
+                                                value={quickEditTask.estimatedDuration ?? ''}
+                                                onChange={(e) => {
+                                                    // V2.12.4: Allow empty/zero for editing, validate on save
+                                                    const val = e.target.value;
+                                                    setQuickEditTask({
+                                                        ...quickEditTask, 
+                                                        estimatedDuration: val === '' ? null : parseInt(val)
+                                                    });
+                                                }}
                                                 className="w-full px-3 py-2 border rounded-lg text-sm"
-                                                min="5"
+                                                min="0"
                                                 step="5"
+                                                placeholder="30"
                                             />
                                         </div>
                                         
@@ -10429,24 +10438,30 @@
                                 <div className="flex gap-2 mt-6">
                                     <button
                                         onClick={() => {
+                                            // V2.12.4: Validate duration before saving
+                                            const validatedTask = {
+                                                ...quickEditTask,
+                                                estimatedDuration: quickEditTask.estimatedDuration || 30
+                                            };
+                                            
                                             // Check if this is a subtask
                                             if (quickEditTask.isSubtask && quickEditTask.parentId) {
                                                 // Save subtask back to parent
                                                 updateSubtask(quickEditTask.parentId, quickEditTask.id, {
-                                                    text: quickEditTask.text,
-                                                    priority: quickEditTask.priority,
-                                                    taskType: quickEditTask.taskType,
-                                                    persona: quickEditTask.persona,
-                                                    timeSlot: quickEditTask.timeSlot,
-                                                    estimatedDuration: quickEditTask.estimatedDuration,
-                                                    dueDate: quickEditTask.dueDate,
-                                                    notes: quickEditTask.notes
+                                                    text: validatedTask.text,
+                                                    priority: validatedTask.priority,
+                                                    taskType: validatedTask.taskType,
+                                                    persona: validatedTask.persona,
+                                                    timeSlot: validatedTask.timeSlot,
+                                                    estimatedDuration: validatedTask.estimatedDuration,
+                                                    dueDate: validatedTask.dueDate,
+                                                    notes: validatedTask.notes
                                                 });
                                                 showToast('Subtask updated!');
                                             } else {
                                                 // Regular task - save normally
                                                 setTasks(prev => prev.map(t => 
-                                                    t.id === quickEditTask.id ? quickEditTask : t
+                                                    t.id === quickEditTask.id ? validatedTask : t
                                                 ));
                                                 showToast('Task updated!');
                                             }
