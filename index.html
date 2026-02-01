@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Life Ninja V2.13.0 - Search + ESC Keys</title>
+    <title>Life Ninja V2.14.1 - Critical Bugfixes</title>
     <script src="https://cdn.tailwindcss.com"></script>
     
     <script crossorigin src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
@@ -254,20 +254,27 @@
         };
         
         console.log('═══════════════════════════════════════════════');
-        console.log('🚀 VERSION: V2.13.0-SEARCH-ESC-JAN27-2300 🚀');
+        console.log('🚀 VERSION: V2.14.1-CRITICAL-BUGFIXES-FEB01 🚀');
         console.log('');
-        console.log('🎯 FEATURE COMPLETE:');
-        console.log('✅ Search persistence (sessionStorage)!');
-        console.log('   - Persists across view changes');
-        console.log('   - No more clearing on clicks');
+        console.log('🔧 CRITICAL FIXES:');
+        console.log('✅ Personas sync race condition FIXED!');
+        console.log('   - Added justLoadedPersonasRef flag');
+        console.log('   - Prevents immediate save after load');
+        console.log('   - NO MORE DATA LOSS!');
         console.log('');
-        console.log('✅ ESC key handlers!');
-        console.log('   - ESC in search → clear + focus task');
-        console.log('   - ESC in task → clear + blur');
+        console.log('✅ Search focus FIXED!');
+        console.log('   - Cursor position preserved');
+        console.log('   - No more focus loss on typing');
         console.log('');
-        console.log('👤 Personas sync (V2.12.9)');
-        console.log('✅ Custom statuses sync (V2.12.6)');
-        console.log('✅ Projects sync (V2.12.5)');
+        console.log('✅ ESC in QuickEdit modal!');
+        console.log('   - Press ESC to close without saving');
+        console.log('');
+        console.log('🎯 WORKING FEATURES:');
+        console.log('✅ Search persistence (sessionStorage)');
+        console.log('✅ ESC keys (search/task/QuickEdit)');
+        console.log('✅ Personas sync (SAFE!)');
+        console.log('✅ Custom statuses sync');
+        console.log('✅ Projects sync');
         console.log('═══════════════════════════════════════════════');
         console.log('🖥️ Device detected:', getDeviceId());
         
@@ -2223,17 +2230,20 @@
                                 setPersonas(personasToMigrate);
                             } else {
                                 console.log(`✅ Migrated ${personasToMigrate.length} personas:`, personasToMigrate);
+                                justLoadedPersonasRef.current = true; // V2.14.1: Mark as just loaded
                                 setPersonas(personasToMigrate);
                                 showToast(`Migrated ${personasToMigrate.length} personas to cloud!`, true);
                             }
                         } else if (data && data.personas && Array.isArray(data.personas) && data.personas.length > 0) {
-                            // Use Supabase data
+                            // V2.14.1: Use Supabase data - set flag to prevent immediate save!
                             console.log(`✅ Using ${data.personas.length} personas from Supabase`);
+                            justLoadedPersonasRef.current = true; // V2.14.1: Mark as just loaded
                             setPersonas(data.personas);
                         } else {
-                            // No data anywhere, use defaults
+                            // V2.14.1: No data anywhere, use defaults
                             console.log('ℹ️ No personas found, using defaults');
                             const defaults = ['The Self', 'Healthcare Professional', 'Entrepreneur'];
+                            justLoadedPersonasRef.current = true; // V2.14.1: Mark as just loaded (explicit save below)
                             setPersonas(defaults);
                             
                             // Save defaults to Supabase
@@ -2258,17 +2268,17 @@
                 loadPersonas();
             }, [user]);
             
+            // V2.14.1: Track if we just loaded personas (prevent immediate save race condition!)
+            const justLoadedPersonasRef = useRef(false);
+            
             // V2.12.7: Save personas to Supabase when they change
             useEffect(() => {
                 if (!user || personas.length === 0) return;
                 
-                // Skip initial load (to avoid overwriting on first render)
-                const isInitialLoad = personas.length === 3 && 
-                                     personas[0] === 'The Self' && 
-                                     personas[1] === 'Healthcare Professional';
-                
-                if (isInitialLoad) {
-                    console.log('⏭️ Skipping initial personas save');
+                // V2.14.1: Skip save if we JUST loaded from Supabase (prevents data loss!)
+                if (justLoadedPersonasRef.current) {
+                    console.log('⏭️ Skipping save - just loaded from Supabase');
+                    justLoadedPersonasRef.current = false; // Reset flag
                     return;
                 }
                 
@@ -6275,8 +6285,19 @@
                 // V2.13.0: Search now from parent (with sessionStorage persistence!)
                 const newTaskInputRef = useRef(null);
                 const searchInputRef = useRef(null);
+                const wasSearchFocusedRef = useRef(false); // V2.14.1: Track if search was focused
+                const searchCursorPosRef = useRef(0); // V2.14.1: Track cursor position
                 
-                // V2.12.2.12: ListView filters tasks using its OWN local searchQuery!
+                // V2.14.1: Restore search focus AND cursor position after re-renders
+                useEffect(() => {
+                    if (wasSearchFocusedRef.current && searchInputRef.current) {
+                        searchInputRef.current.focus();
+                        // Restore cursor position
+                        searchInputRef.current.setSelectionRange(searchCursorPosRef.current, searchCursorPosRef.current);
+                    }
+                });
+                
+                // V2.13.0: ListView filters tasks using parent's searchQuery!
                 const filteredTasks = useMemo(() => {
                     let filtered = tasks.filter(task => {
                         // Filter out completion zone tasks
@@ -6383,6 +6404,9 @@
                                         placeholder="Search tasks..."
                                         value={searchQuery}
                                         onFocus={() => {
+                                            // V2.14.1: Mark search as focused
+                                            wasSearchFocusedRef.current = true;
+                                            
                                             // V2.12.2.12: Just disable rapid entry - simple!
                                             console.log('🔍 Search focused - disabling rapid entry');
                                             isCreatingTasksRef.current = false;
@@ -6396,9 +6420,14 @@
                                                 console.log('📝 Task field has text - preserving');
                                             }
                                         }}
+                                        onBlur={() => {
+                                            // V2.14.1: Mark search as no longer focused
+                                            wasSearchFocusedRef.current = false;
+                                        }}
                                         onChange={(e) => {
+                                            // V2.14.1: Track cursor position before update
+                                            searchCursorPosRef.current = e.target.selectionStart;
                                             // V2.12.2.12: Simple controlled input - just update state!
-                                            // No debounce, no parent updates, no complexity!
                                             setSearchQuery(e.target.value);
                                         }}
                                         onKeyDown={(e) => {
@@ -9940,7 +9969,7 @@
                         <div className="text-center">
                             <div className="animate-spin rounded-full h-16 w-16 border-b-4 border-indigo-600 mx-auto mb-4"></div>
                             <p className="text-gray-600">Loading Life Ninja...</p>
-                            <p className="text-gray-400 text-sm mt-2">V2.13.0</p>
+                            <p className="text-gray-400 text-sm mt-2">V2.14.1</p>
                         </div>
                     </div>
                 );
@@ -9954,8 +9983,8 @@
                             <div className="text-center mb-8">
                                 <Target className="text-indigo-600 mx-auto mb-4" size={48} />
                                 <h1 className="text-3xl font-bold text-gray-900 mb-2">Life Ninja</h1>
-                                <p className="text-xl font-bold text-indigo-600 mb-1">V2.13.0</p>
-                                <p className="text-gray-600 text-sm">Search Persistence + ESC Keys!</p>
+                                <p className="text-xl font-bold text-indigo-600 mb-1">V2.14.1</p>
+                                <p className="text-gray-600 text-sm">Critical Bugfixes!</p>
                             </div>
                             
                             <div className="mb-6">
@@ -10066,7 +10095,7 @@
                                 <div className="flex items-center gap-3">
                                     <Target className="text-indigo-600" size={32} />
                                     <h1 className="text-2xl font-bold text-gray-900">Life Ninja</h1>
-                                    <span className="text-sm bg-green-600 text-white px-3 py-1 rounded-full font-bold">V2.13.0</span>
+                                    <span className="text-sm bg-red-600 text-white px-3 py-1 rounded-full font-bold">V2.14.1</span>
                                 </div>
 
                                 <div className="flex items-center gap-4">
@@ -10603,6 +10632,14 @@
                                                 isCreatingTasksRef.current = false;
                                             }}
                                             onKeyDown={(e) => {
+                                                // V2.14.1: ESC key - close modal without saving
+                                                if (e.key === 'Escape') {
+                                                    console.log('⌨️ ESC in QuickEdit - closing');
+                                                    isInModalRef.current = false;
+                                                    setShowQuickEdit(false);
+                                                    return;
+                                                }
+                                                
                                                 // V2.12.2.1: Save on Enter key
                                                 if (e.key === 'Enter') {
                                                     e.preventDefault();
