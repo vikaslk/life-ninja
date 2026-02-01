@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Life Ninja V2.12.4 - Duration Fix</title>
+    <title>Life Ninja V2.12.5 - Projects & Personas Sync</title>
     <script src="https://cdn.tailwindcss.com"></script>
     
     <script crossorigin src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
@@ -254,19 +254,20 @@
         };
         
         console.log('═══════════════════════════════════════════════');
-        console.log('🚀 VERSION: V2.12.4-DURATION-FIX-JAN27-1100 🚀');
+        console.log('🚀 VERSION: V2.12.5-PROJECTS-PERSONAS-SYNC-JAN27-1800 🚀');
         console.log('');
-        console.log('✅ CRITICAL FIX:');
-        console.log('📝 Duration field can now be edited!');
-        console.log('   - Can delete value');
-        console.log('   - Can type any number');
-        console.log('   - Changes 30→60 works smoothly');
-        console.log('   - Defaults to 30 on save if empty');
+        console.log('🎯 TOP PRIORITY FIXES:');
+        console.log('📂 Projects now sync across devices!');
+        console.log('   - Load from Supabase');
+        console.log('   - Save new projects to Supabase');
+        console.log('   - Real-time sync active');
+        console.log('   - Auto-migrate from localStorage');
         console.log('');
-        console.log('🔍 INVESTIGATING:');
-        console.log('   - Projects/Personas sync issues');
-        console.log('   - List status sync issues');
-        console.log('   - Search lost on drag/touch');
+        console.log('👤 Personas now sync across devices!');
+        console.log('   - Load from Supabase settings');
+        console.log('   - Auto-migrate from localStorage');
+        console.log('');
+        console.log('✅ Duration field fix (V2.12.4)');
         console.log('═══════════════════════════════════════════════');
         console.log('🖥️ Device detected:', getDeviceId());
         
@@ -1405,12 +1406,73 @@
                     }
                 }, 60000); // Check every 60 seconds
                 
+                // V2.12.5: Subscribe to projects table changes
+                const projectsSubscription = supabase
+                    .channel('projects-changes')
+                    .on(
+                        'postgres_changes',
+                        {
+                            event: '*',
+                            schema: 'public',
+                            table: 'projects',
+                            filter: `user_id=eq.${user.id}`
+                        },
+                        (payload) => {
+                            console.log('📂 Projects change detected:', payload.eventType);
+                            
+                            if (payload.eventType === 'INSERT') {
+                                const newProject = {
+                                    id: payload.new.id,
+                                    name: payload.new.name,
+                                    status: payload.new.status,
+                                    color: payload.new.color,
+                                    statuses: payload.new.statuses
+                                };
+                                
+                                setProjects(prev => {
+                                    // Check if project already exists
+                                    if (prev.some(p => p.id === newProject.id)) {
+                                        console.log('⏭️ Project already exists, skipping:', newProject.name);
+                                        return prev;
+                                    }
+                                    console.log('➕ Adding new project from real-time:', newProject.name);
+                                    return [...prev, newProject];
+                                });
+                            } else if (payload.eventType === 'UPDATE') {
+                                const updatedProject = {
+                                    id: payload.new.id,
+                                    name: payload.new.name,
+                                    status: payload.new.status,
+                                    color: payload.new.color,
+                                    statuses: payload.new.statuses
+                                };
+                                
+                                setProjects(prev => prev.map(p =>
+                                    p.id === updatedProject.id ? updatedProject : p
+                                ));
+                                console.log('📝 Updated project from real-time:', updatedProject.name);
+                            } else if (payload.eventType === 'DELETE') {
+                                setProjects(prev => prev.filter(p => p.id !== payload.old.id));
+                                console.log('🗑️ Deleted project from real-time');
+                            }
+                        }
+                    )
+                    .subscribe((status) => {
+                        console.log(`📡 [${new Date().toISOString()}] Projects subscription status:`, status);
+                        if (status === 'SUBSCRIBED') {
+                            console.log('✅ Projects sync CONNECTED');
+                        } else if (status === 'CLOSED') {
+                            console.log('🔌 Projects sync CLOSED - connection ended');
+                        }
+                    });
+                
                 // Cleanup subscriptions on unmount
                 return () => {
                     console.log('🔌 Unsubscribing from real-time channels');
                     clearInterval(healthCheck);
                     tasksSubscription.unsubscribe();
                     eventsSubscription.unsubscribe();
+                    projectsSubscription.unsubscribe();
                 };
             }, [user]);
             
@@ -1942,50 +2004,189 @@
             
             // Task and organizational data
             const [tasks, setTasks] = useStickyState([], 'ln_tasks');
-            const [personas, setPersonas] = useStickyState(['The Self', 'Healthcare Professional', 'Entrepreneur'], 'ln_personas');
-            const [projects, setProjects] = useStickyState([
+            // V2.12.5: Projects now sync via Supabase! (was localStorage only)
+            const [projects, setProjects] = useState([
                 {
-                    id: 'no-project', // Special ID for "No Project" pseudo-project
-                    name: '__NO_PROJECT__', // Special name (won't match any task.project)
-                    status: 0, // Not used for "No Project"
-                    color: '#9ca3af', // Gray color
-                    statuses: ['not-started', 'in-progress', 'completed'], // Default statuses
-                    isNoProject: true // Flag to identify this special project
-                },
-                {
-                    id: Date.now(), 
-                    name: 'X-Ponential AI', 
-                    status: 80, 
-                    color: '#6366f1',
-                    statuses: ['not-started', 'in-progress', 'completed'] // Default
-                },
-                {
-                    id: Date.now() + 1, 
-                    name: 'Anyo Lyfis', 
-                    status: 60, 
-                    color: '#8b5cf6',
-                    statuses: ['to-do', 'in-progress', 'awaiting-discussion', 'delayed-parked', 'done']
+                    id: 'no-project',
+                    name: '__NO_PROJECT__',
+                    status: 0,
+                    color: '#9ca3af',
+                    statuses: ['not-started', 'in-progress', 'completed'],
+                    isNoProject: true
                 }
-            ], 'ln_projects');
+            ]);
             
-            // MIGRATION: Ensure "No Project" pseudo-project exists
-            React.useEffect(() => {
-                const hasNoProjectPseudo = projects.some(p => p.isNoProject);
-                if (!hasNoProjectPseudo) {
-                    console.log('🔧 MIGRATION: Adding "No Project" pseudo-project');
-                    setProjects(prev => [
-                        {
-                            id: 'no-project',
-                            name: '__NO_PROJECT__',
-                            status: 0,
-                            color: '#9ca3af',
-                            statuses: ['not-started', 'in-progress', 'completed'],
-                            isNoProject: true
-                        },
-                        ...prev
-                    ]);
-                }
-            }, []); // Run once on mount
+            // V2.12.5: Personas now sync via Supabase settings! (was localStorage only)  
+            const [personas, setPersonas] = useState(['The Self', 'Healthcare Professional', 'Entrepreneur']);
+            
+            // V2.12.5: Load projects from Supabase
+            useEffect(() => {
+                if (!user) return;
+                
+                const loadProjects = async () => {
+                    try {
+                        console.log('🔄 Loading projects from Supabase (user logged in)');
+                        
+                        // Check localStorage for migration
+                        const localProjects = localStorage.getItem('ln_projects');
+                        let needsMigration = false;
+                        let projectsToMigrate = [];
+                        
+                        if (localProjects) {
+                            try {
+                                const parsed = JSON.parse(localProjects);
+                                projectsToMigrate = parsed.filter(p => !p.isNoProject && p.name);
+                                needsMigration = projectsToMigrate.length > 0;
+                                console.log(`📦 Found ${projectsToMigrate.length} projects in localStorage`);
+                            } catch (e) {
+                                console.error('Error parsing localStorage projects:', e);
+                            }
+                        }
+                        
+                        // Load from Supabase
+                        const { data, error } = await supabase
+                            .from('projects')
+                            .select('*')
+                            .eq('user_id', user.id)
+                            .order('created_at', { ascending: true });
+                        
+                        if (error) throw error;
+                        
+                        console.log(`✅ Loaded ${data?.length || 0} projects from Supabase`);
+                        
+                        // MIGRATION: If localStorage has projects but Supabase has fewer, migrate!
+                        if (needsMigration && (!data || data.length < projectsToMigrate.length)) {
+                            console.log('🔄 MIGRATING projects from localStorage to Supabase...');
+                            
+                            const existingIds = new Set(data?.map(p => String(p.id)) || []);
+                            
+                            for (const project of projectsToMigrate) {
+                                // Skip if already migrated
+                                if (existingIds.has(String(project.id))) {
+                                    console.log(`⏭️  Skipping ${project.name} (already in Supabase)`);
+                                    continue;
+                                }
+                                
+                                const projectId = typeof project.id === 'string' ? parseInt(project.id) : project.id;
+                                
+                                const { error: insertError } = await supabase
+                                    .from('projects')
+                                    .insert({
+                                        id: projectId,
+                                        user_id: user.id,
+                                        name: project.name,
+                                        status: project.status || 0,
+                                        color: project.color || '#6366f1',
+                                        statuses: project.statuses || ['not-started', 'in-progress', 'completed']
+                                    });
+                                
+                                if (insertError) {
+                                    console.error(`❌ Failed to migrate ${project.name}:`, insertError);
+                                } else {
+                                    console.log(`✅ Migrated project: ${project.name} (ID: ${projectId})`);
+                                }
+                            }
+                            
+                            // Reload after migration
+                            const { data: reloadData } = await supabase
+                                .from('projects')
+                                .select('*')
+                                .eq('user_id', user.id)
+                                .order('created_at', { ascending: true });
+                            
+                            if (reloadData) {
+                                setProjects(prev => [
+                                    prev[0], // Keep no-project
+                                    ...reloadData
+                                ]);
+                                showToast(`Migrated ${projectsToMigrate.length} projects to cloud!`, true);
+                            }
+                        } else if (data && data.length > 0) {
+                            setProjects(prev => [
+                                prev[0], // Keep no-project
+                                ...data
+                            ]);
+                        }
+                        
+                        console.log('✅ Projects sync complete');
+                        
+                    } catch (error) {
+                        console.error('❌ Error loading projects:', error);
+                        showToast('Error loading projects', false);
+                    }
+                };
+                
+                loadProjects();
+            }, [user]);
+            
+            // V2.12.5: Load personas from Supabase settings
+            useEffect(() => {
+                if (!user) return;
+                
+                const loadPersonas = async () => {
+                    try {
+                        console.log('🔄 Loading personas from Supabase settings');
+                        
+                        // Check localStorage for migration
+                        const localPersonas = localStorage.getItem('ln_personas');
+                        let needsMigration = false;
+                        let personasToMigrate = [];
+                        
+                        if (localPersonas) {
+                            try {
+                                personasToMigrate = JSON.parse(localPersonas);
+                                needsMigration = personasToMigrate.length > 0;
+                                console.log(`📦 Found ${personasToMigrate.length} personas in localStorage`);
+                            } catch (e) {
+                                console.error('Error parsing localStorage personas:', e);
+                            }
+                        }
+                        
+                        // Load from Supabase settings
+                        const { data, error } = await supabase
+                            .from('settings')
+                            .select('personas')
+                            .eq('user_id', user.id)
+                            .maybeSingle();
+                        
+                        if (error) throw error;
+                        
+                        console.log('✅ Loaded personas from Supabase');
+                        
+                        // MIGRATION: If localStorage has personas but Supabase doesn't, migrate!
+                        if (needsMigration && (!data || !data.personas || data.personas.length === 0)) {
+                            console.log('🔄 MIGRATING personas from localStorage to Supabase...');
+                            
+                            const { error: upsertError } = await supabase
+                                .from('settings')
+                                .upsert({
+                                    user_id: user.id,
+                                    personas: personasToMigrate
+                                }, {
+                                    onConflict: 'user_id'
+                                });
+                            
+                            if (upsertError) {
+                                console.error('❌ Failed to migrate personas:', upsertError);
+                            } else {
+                                console.log(`✅ Migrated ${personasToMigrate.length} personas:`, personasToMigrate);
+                                setPersonas(personasToMigrate);
+                                showToast(`Migrated ${personasToMigrate.length} personas to cloud!`, true);
+                            }
+                        } else if (data && data.personas && data.personas.length > 0) {
+                            setPersonas(data.personas);
+                        }
+                        
+                        console.log('✅ Personas sync complete');
+                        
+                    } catch (error) {
+                        console.error('❌ Error loading personas:', error);
+                        showToast('Error loading personas', false);
+                    }
+                };
+                
+                loadPersonas();
+            }, [user]);
             
             const [customLists, setCustomLists] = useStickyState([], 'ln_customLists');
 
@@ -8391,7 +8592,7 @@
                         <div className="flex justify-between items-center mb-4">
                             <h2 className="text-xl font-bold">Projects</h2>
                             <button
-                                onClick={() => {
+                                onClick={async () => {
                                     const projectName = prompt('Enter new project name:');
                                     if (projectName && projectName.trim()) {
                                         const newProject = {
@@ -8401,8 +8602,34 @@
                                             color: '#6366f1',
                                             statuses: ['not-started', 'in-progress', 'completed']
                                         };
-                                        setProjects(prev => [...prev, newProject]);
-                                        showToast('Project created!', true);
+                                        
+                                        // V2.12.5: Save to Supabase
+                                        if (user) {
+                                            try {
+                                                const { error } = await supabase
+                                                    .from('projects')
+                                                    .insert({
+                                                        id: newProject.id,
+                                                        user_id: user.id,
+                                                        name: newProject.name,
+                                                        status: newProject.status,
+                                                        color: newProject.color,
+                                                        statuses: newProject.statuses
+                                                    });
+                                                
+                                                if (error) throw error;
+                                                
+                                                console.log('✅ Project saved to Supabase:', newProject.name);
+                                                setProjects(prev => [...prev, newProject]);
+                                                showToast('Project created and synced!', true);
+                                            } catch (error) {
+                                                console.error('❌ Error saving project:', error);
+                                                showToast('Error creating project', false);
+                                            }
+                                        } else {
+                                            setProjects(prev => [...prev, newProject]);
+                                            showToast('Project created!', true);
+                                        }
                                     }
                                 }}
                                 className="px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 flex items-center gap-2"
@@ -9549,8 +9776,8 @@
                             <div className="text-center mb-8">
                                 <Target className="text-indigo-600 mx-auto mb-4" size={48} />
                                 <h1 className="text-3xl font-bold text-gray-900 mb-2">Life Ninja</h1>
-                                <p className="text-xl font-bold text-indigo-600 mb-1">V2.12.4</p>
-                                <p className="text-gray-600 text-sm">Duration Fix + Investigating Sync!</p>
+                                <p className="text-xl font-bold text-indigo-600 mb-1">V2.12.5</p>
+                                <p className="text-gray-600 text-sm">Projects & Personas Sync!</p>
                             </div>
                             
                             <div className="mb-6">
@@ -9661,7 +9888,7 @@
                                 <div className="flex items-center gap-3">
                                     <Target className="text-indigo-600" size={32} />
                                     <h1 className="text-2xl font-bold text-gray-900">Life Ninja</h1>
-                                    <span className="text-sm bg-red-600 text-white px-3 py-1 rounded-full font-bold">V2.12.4</span>
+                                    <span className="text-sm bg-green-600 text-white px-3 py-1 rounded-full font-bold">V2.12.5</span>
                                 </div>
 
                                 <div className="flex items-center gap-4">
