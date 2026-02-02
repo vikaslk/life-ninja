@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Life Ninja V2.14.1 - Critical Bugfixes</title>
+    <title>Life Ninja V2.14.2 - Sync Protection</title>
     <script src="https://cdn.tailwindcss.com"></script>
     
     <script crossorigin src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
@@ -254,27 +254,29 @@
         };
         
         console.log('═══════════════════════════════════════════════');
-        console.log('🚀 VERSION: V2.14.1-CRITICAL-BUGFIXES-FEB01 🚀');
+        console.log('🚀 VERSION: V2.14.2-SYNC-PROTECTION-FEB01 🚀');
         console.log('');
-        console.log('🔧 CRITICAL FIXES:');
-        console.log('✅ Personas sync race condition FIXED!');
-        console.log('   - Added justLoadedPersonasRef flag');
-        console.log('   - Prevents immediate save after load');
-        console.log('   - NO MORE DATA LOSS!');
+        console.log('🛡️ CRITICAL PROTECTION:');
+        console.log('✅ Real-time persona sync PROTECTED!');
+        console.log('   - Smart merge logic');
+        console.log('   - Keeps local if more personas');
+        console.log('   - Prevents data loss from race conditions');
         console.log('');
-        console.log('✅ Search focus FIXED!');
-        console.log('   - Cursor position preserved');
-        console.log('   - No more focus loss on typing');
+        console.log('✅ Search focus FIXED (again)!');
+        console.log('   - Active typing detection');
+        console.log('   - Focus restoration');
         console.log('');
-        console.log('✅ ESC in QuickEdit modal!');
-        console.log('   - Press ESC to close without saving');
+        console.log('✅ Timezone fixed!');
+        console.log('   - Uses local timezone for dates');
+        console.log('   - Created date shows correctly');
         console.log('');
-        console.log('🎯 WORKING FEATURES:');
-        console.log('✅ Search persistence (sessionStorage)');
-        console.log('✅ ESC keys (search/task/QuickEdit)');
-        console.log('✅ Personas sync (SAFE!)');
-        console.log('✅ Custom statuses sync');
-        console.log('✅ Projects sync');
+        console.log('✅ Device tracking added!');
+        console.log('   - All saves track device ID');
+        console.log('   - Better debugging');
+        console.log('');
+        console.log('🎯 V2.14.1 FIXES INCLUDED:');
+        console.log('✅ Personas sync race condition fixed');
+        console.log('✅ ESC in QuickEdit modal');
         console.log('═══════════════════════════════════════════════');
         console.log('🖥️ Device detected:', getDeviceId());
         
@@ -300,10 +302,10 @@
             if (!date) return null;
             // Handle ISO string dates (from Supabase)
             const d = typeof date === 'string' ? new Date(date) : date;
-            // Use UTC to avoid timezone issues
-            const day = String(d.getUTCDate()).padStart(2, '0');
-            const month = String(d.getUTCMonth() + 1).padStart(2, '0');
-            const year = d.getUTCFullYear();
+            // V2.14.2: Use LOCAL timezone, not UTC!
+            const day = String(d.getDate()).padStart(2, '0');
+            const month = String(d.getMonth() + 1).padStart(2, '0');
+            const year = d.getFullYear();
             return `${day}/${month}/${year}`;
         };
 
@@ -1488,9 +1490,38 @@
                             console.log('👤 Personas change detected from real-time');
                             
                             if (payload.new && payload.new.personas && Array.isArray(payload.new.personas)) {
-                                const newPersonas = payload.new.personas;
-                                console.log(`✅ Updating personas from real-time (${newPersonas.length} personas):`, newPersonas);
-                                setPersonas(newPersonas);
+                                const remotePersonas = payload.new.personas;
+                                console.log(`📥 Remote personas (${remotePersonas.length}):`, remotePersonas);
+                                console.log(`💻 Local personas (${personas.length}):`, personas);
+                                
+                                // V2.14.2: SMART MERGE - Don't blindly overwrite!
+                                // If remote has MORE personas, use remote (additions from other device)
+                                // If local has MORE personas, KEEP local (we're adding right now!)
+                                // If same count, use remote (updates from other device)
+                                
+                                if (remotePersonas.length > personas.length) {
+                                    console.log('✅ Remote has MORE personas - accepting update');
+                                    justLoadedPersonasRef.current = true; // Prevent save loop
+                                    setPersonas(remotePersonas);
+                                } else if (remotePersonas.length < personas.length) {
+                                    console.log('⚠️ Remote has FEWER personas - KEEPING local (we may be adding)');
+                                    console.log('   This prevents data loss from race conditions!');
+                                    // DON'T update - local is ahead
+                                } else {
+                                    // Same count - check if actually different
+                                    const localSet = new Set(personas);
+                                    const remoteSet = new Set(remotePersonas);
+                                    const areDifferent = personas.some(p => !remoteSet.has(p)) || 
+                                                        remotePersonas.some(p => !localSet.has(p));
+                                    
+                                    if (areDifferent) {
+                                        console.log('✅ Same count but different personas - accepting update');
+                                        justLoadedPersonasRef.current = true;
+                                        setPersonas(remotePersonas);
+                                    } else {
+                                        console.log('ℹ️ Same personas - no update needed');
+                                    }
+                                }
                             }
                         }
                     )
@@ -2284,21 +2315,29 @@
                 
                 const savePersonas = async () => {
                     try {
-                        console.log('💾 Saving personas to Supabase:', personas);
+                        const deviceId = getDeviceId();
+                        const timestamp = new Date().toISOString();
+                        console.log(`💾 [${deviceId}] Saving ${personas.length} personas to Supabase:`, personas);
+                        console.log(`   Timestamp: ${timestamp}`);
                         
                         const { error } = await supabase
                             .from('settings')
                             .upsert({
                                 user_id: user.id,
                                 key: 'user_preferences',  // V2.12.9: Required field!
-                                personas: personas
+                                personas: personas,
+                                value: { // V2.14.2: Track update metadata
+                                    last_update_device: deviceId,
+                                    last_update_time: timestamp,
+                                    persona_count: personas.length
+                                }
                             }, {
                                 onConflict: 'user_id'
                             });
                         
                         if (error) throw error;
                         
-                        console.log('✅ Personas saved to Supabase');
+                        console.log(`✅ [${deviceId}] Personas saved to Supabase successfully`);
                         
                     } catch (error) {
                         console.error('❌ Error saving personas:', error);
@@ -6285,17 +6324,23 @@
                 // V2.13.0: Search now from parent (with sessionStorage persistence!)
                 const newTaskInputRef = useRef(null);
                 const searchInputRef = useRef(null);
-                const wasSearchFocusedRef = useRef(false); // V2.14.1: Track if search was focused
-                const searchCursorPosRef = useRef(0); // V2.14.1: Track cursor position
+                const isTypingInSearchRef = useRef(false); // V2.14.2: Track if actively typing
+                const lastSearchUpdateRef = useRef(Date.now());
                 
-                // V2.14.1: Restore search focus AND cursor position after re-renders
+                // V2.14.2: Maintain focus while actively typing in search
                 useEffect(() => {
-                    if (wasSearchFocusedRef.current && searchInputRef.current) {
-                        searchInputRef.current.focus();
-                        // Restore cursor position
-                        searchInputRef.current.setSelectionRange(searchCursorPosRef.current, searchCursorPosRef.current);
+                    // If we're actively typing (within 100ms of last update), restore focus
+                    const timeSinceUpdate = Date.now() - lastSearchUpdateRef.current;
+                    if (isTypingInSearchRef.current && timeSinceUpdate < 100 && searchInputRef.current) {
+                        // Check if focus was lost
+                        if (document.activeElement !== searchInputRef.current) {
+                            console.log('🔍 Restoring search focus (actively typing)');
+                            const cursorPos = searchInputRef.current.value.length;
+                            searchInputRef.current.focus();
+                            searchInputRef.current.setSelectionRange(cursorPos, cursorPos);
+                        }
                     }
-                });
+                }, [searchQuery]); // Run when searchQuery changes
                 
                 // V2.13.0: ListView filters tasks using parent's searchQuery!
                 const filteredTasks = useMemo(() => {
@@ -6404,8 +6449,8 @@
                                         placeholder="Search tasks..."
                                         value={searchQuery}
                                         onFocus={() => {
-                                            // V2.14.1: Mark search as focused
-                                            wasSearchFocusedRef.current = true;
+                                            // V2.14.2: Mark as actively typing
+                                            isTypingInSearchRef.current = true;
                                             
                                             // V2.12.2.12: Just disable rapid entry - simple!
                                             console.log('🔍 Search focused - disabling rapid entry');
@@ -6421,14 +6466,20 @@
                                             }
                                         }}
                                         onBlur={() => {
-                                            // V2.14.1: Mark search as no longer focused
-                                            wasSearchFocusedRef.current = false;
+                                            // V2.14.2: Mark as no longer typing
+                                            isTypingInSearchRef.current = false;
                                         }}
                                         onChange={(e) => {
-                                            // V2.14.1: Track cursor position before update
-                                            searchCursorPosRef.current = e.target.selectionStart;
+                                            // V2.14.2: Track typing activity
+                                            lastSearchUpdateRef.current = Date.now();
+                                            isTypingInSearchRef.current = true;
                                             // V2.12.2.12: Simple controlled input - just update state!
                                             setSearchQuery(e.target.value);
+                                            
+                                            // Clear typing flag after brief delay
+                                            setTimeout(() => {
+                                                isTypingInSearchRef.current = false;
+                                            }, 150);
                                         }}
                                         onKeyDown={(e) => {
                                             // V2.13.0: ESC key - clear search and focus task field
@@ -9969,7 +10020,7 @@
                         <div className="text-center">
                             <div className="animate-spin rounded-full h-16 w-16 border-b-4 border-indigo-600 mx-auto mb-4"></div>
                             <p className="text-gray-600">Loading Life Ninja...</p>
-                            <p className="text-gray-400 text-sm mt-2">V2.14.1</p>
+                            <p className="text-gray-400 text-sm mt-2">V2.14.2</p>
                         </div>
                     </div>
                 );
@@ -9983,8 +10034,8 @@
                             <div className="text-center mb-8">
                                 <Target className="text-indigo-600 mx-auto mb-4" size={48} />
                                 <h1 className="text-3xl font-bold text-gray-900 mb-2">Life Ninja</h1>
-                                <p className="text-xl font-bold text-indigo-600 mb-1">V2.14.1</p>
-                                <p className="text-gray-600 text-sm">Critical Bugfixes!</p>
+                                <p className="text-xl font-bold text-indigo-600 mb-1">V2.14.2</p>
+                                <p className="text-gray-600 text-sm">Sync Protection!</p>
                             </div>
                             
                             <div className="mb-6">
@@ -10095,7 +10146,7 @@
                                 <div className="flex items-center gap-3">
                                     <Target className="text-indigo-600" size={32} />
                                     <h1 className="text-2xl font-bold text-gray-900">Life Ninja</h1>
-                                    <span className="text-sm bg-red-600 text-white px-3 py-1 rounded-full font-bold">V2.14.1</span>
+                                    <span className="text-sm bg-orange-600 text-white px-3 py-1 rounded-full font-bold">V2.14.2</span>
                                 </div>
 
                                 <div className="flex items-center gap-4">
